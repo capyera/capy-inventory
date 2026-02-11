@@ -13,7 +13,8 @@ import {
   Warehouse,
   Brain,
   Target,
-  Calendar
+  Calendar,
+  Database
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -26,6 +27,7 @@ const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'revenue-planner', label: 'Revenue Planner', icon: Target, badge: 'PRO' },
   { id: 'ops-calendar', label: 'Ops Calendar', icon: Calendar, badge: 'NEW' },
+  { id: 'products', label: 'Products', icon: Database, badge: 'NEW' },
   { id: 'inventory', label: 'Inventory', icon: Package },
   { id: 'warehouses', label: 'Warehouses', icon: Warehouse },
   { id: 'bundles', label: 'Bundles', icon: Layers },

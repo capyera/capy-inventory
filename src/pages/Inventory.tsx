@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/Badge';
 import { SearchInput } from '../components/ui/Input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { Header } from '../components/layout/Header';
+import { ProductThumbnail } from './Products';
 import { inventoryApi } from '../services/api';
 import { formatNumber, getStockStatus, cn } from '../lib/utils';
 import type { InventoryItem } from '../types';
@@ -199,15 +200,6 @@ export function Inventory() {
                 <TableRow>
                   <TableHead>
                     <SortableHeader 
-                      label="SKU" 
-                      field="sku" 
-                      currentField={sortField} 
-                      direction={sortDirection}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead>
-                    <SortableHeader 
                       label="Product" 
                       field="productName" 
                       currentField={sortField} 
@@ -259,8 +251,15 @@ export function Inventory() {
                         status.status === 'low' && 'bg-orange-50/50'
                       )}
                     >
-                      <TableCell className="font-mono text-xs font-medium">{item.sku}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{item.productName}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <ProductThumbnail sku={item.sku} size="sm" />
+                          <div>
+                            <p className="font-medium text-gray-900 truncate max-w-[180px]">{item.productName}</p>
+                            <p className="font-mono text-xs text-gray-500">{item.sku}</p>
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge>{item.category}</Badge>
                       </TableCell>

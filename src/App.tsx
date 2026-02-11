@@ -4,6 +4,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
 import { Warehouses } from './pages/Warehouses';
 import { Bundles } from './pages/Bundles';
+import { Products } from './pages/Products';
 import { COGS } from './pages/COGS';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { Suppliers } from './pages/Suppliers';
@@ -21,6 +22,8 @@ function App() {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard onNavigate={setActiveTab} />;
+      case 'products':
+        return <Products />;
       case 'inventory':
         return <Inventory />;
       case 'warehouses':
