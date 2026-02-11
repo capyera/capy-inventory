@@ -17,16 +17,16 @@ export function Button({
   disabled,
   ...props 
 }: ButtonProps) {
-  const baseStyles = "inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles = "inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0f1419] disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
-    primary: "bg-amber-700 text-white hover:bg-amber-800 focus:ring-amber-500",
-    secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500",
-    outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-gray-500",
-    ghost: "text-gray-700 hover:bg-gray-100 focus:ring-gray-500",
-    danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
-    link: "text-amber-700 hover:text-amber-800 underline-offset-4 hover:underline focus:ring-amber-500",
-    default: "bg-amber-700 text-white hover:bg-amber-800 focus:ring-amber-500",
+    primary: "bg-amber-500 text-[#0f1419] hover:bg-amber-400 focus:ring-amber-500 glow-sm",
+    secondary: "bg-[#242b3d] text-[#e7e9ea] hover:bg-[#2f3847] focus:ring-[#3b4a5e]",
+    outline: "border border-[#3b4a5e] bg-transparent text-[#e7e9ea] hover:bg-[#242b3d] hover:border-[#8b98a5] focus:ring-[#3b4a5e]",
+    ghost: "text-[#e7e9ea] hover:bg-[#242b3d] focus:ring-[#3b4a5e]",
+    danger: "bg-red-500 text-white hover:bg-red-400 focus:ring-red-500",
+    link: "text-amber-400 hover:text-amber-300 underline-offset-4 hover:underline focus:ring-amber-500",
+    default: "bg-amber-500 text-[#0f1419] hover:bg-amber-400 focus:ring-amber-500",
   };
   
   const sizes = {

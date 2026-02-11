@@ -35,16 +35,16 @@ export function WorkspaceHeader({ userName }: WorkspaceHeaderProps) {
   };
 
   return (
-    <header className="h-14 bg-white border-b border-gray-200 px-6 flex items-center justify-between shrink-0">
+    <header className="h-14 bg-[#1a1f2e] border-b border-[#2f3847] px-6 flex items-center justify-between shrink-0">
       {/* Workspace Selector */}
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-[#242b3d] transition-colors"
         >
-          <CurrentIcon className="w-4 h-4 text-amber-600" />
-          <span className="font-medium text-gray-900">{currentWs.name} Workspace</span>
-          <ChevronDown className="w-4 h-4 text-gray-400" />
+          <CurrentIcon className="w-4 h-4 text-amber-400" />
+          <span className="font-medium text-white">{currentWs.name} Workspace</span>
+          <ChevronDown className="w-4 h-4 text-[#8b98a5]" />
         </button>
 
         {isOpen && (
@@ -53,8 +53,8 @@ export function WorkspaceHeader({ userName }: WorkspaceHeaderProps) {
               className="fixed inset-0 z-10" 
               onClick={() => setIsOpen(false)}
             />
-            <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-              <div className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <div className="absolute top-full left-0 mt-1 w-56 bg-[#242b3d] rounded-lg shadow-xl border border-[#2f3847] py-1 z-20">
+              <div className="px-3 py-2 text-xs font-medium text-[#8b98a5] uppercase tracking-wider">
                 Workspaces
               </div>
               {workspaces.map((ws) => {
@@ -67,31 +67,31 @@ export function WorkspaceHeader({ userName }: WorkspaceHeaderProps) {
                     disabled={!ws.available || !hasAccess}
                     className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
                       ws.id === currentWorkspace
-                        ? 'bg-amber-50 text-amber-700'
+                        ? 'bg-amber-500/20 text-amber-400'
                         : ws.available && hasAccess
-                        ? 'hover:bg-gray-50 text-gray-700'
-                        : 'text-gray-400 cursor-not-allowed'
+                        ? 'hover:bg-[#2f3847] text-[#e7e9ea]'
+                        : 'text-[#8b98a5] cursor-not-allowed opacity-50'
                     }`}
                   >
                     <Icon className={`w-4 h-4 ${
-                      ws.id === currentWorkspace ? 'text-amber-600' : 'text-gray-400'
+                      ws.id === currentWorkspace ? 'text-amber-400' : 'text-[#8b98a5]'
                     }`} />
                     <span className="flex-1">{ws.name}</span>
                     {ws.url && ws.available && (
-                      <ExternalLink className="w-3 h-3 text-gray-400" />
+                      <ExternalLink className="w-3 h-3 text-[#8b98a5]" />
                     )}
                     {!ws.available && (
-                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                      <span className="text-xs bg-[#2f3847] text-[#8b98a5] px-2 py-0.5 rounded-full">
                         Coming Soon
                       </span>
                     )}
                     {ws.available && !hasAccess && !ws.url && (
-                      <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full">
+                      <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
                         No Access
                       </span>
                     )}
                     {ws.id === currentWorkspace && !ws.url && (
-                      <span className="text-amber-600">✓</span>
+                      <span className="text-amber-400">✓</span>
                     )}
                   </button>
                 );
@@ -102,8 +102,8 @@ export function WorkspaceHeader({ userName }: WorkspaceHeaderProps) {
       </div>
 
       {/* Right side - User greeting */}
-      <div className="text-sm text-gray-500">
-        Welcome back, <span className="font-medium text-gray-900">{userName}</span>
+      <div className="text-sm text-[#8b98a5]">
+        Welcome back, <span className="font-medium text-white">{userName}</span>
       </div>
     </header>
   );
