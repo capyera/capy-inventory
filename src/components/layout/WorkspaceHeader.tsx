@@ -1,4 +1,4 @@
-import { ChevronDown, Package, FileText } from 'lucide-react';
+import { ChevronDown, Package, FileText, Palette, Users, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -7,8 +7,10 @@ interface WorkspaceHeaderProps {
 }
 
 const workspaces = [
-  { id: 'operations', name: 'Operations', icon: Package, available: true },
-  { id: 'content', name: 'Content', icon: FileText, available: false },
+  { id: 'operations', name: 'Operations', icon: Package, available: true, url: null },
+  { id: 'content', name: 'Content', icon: FileText, available: true, url: 'https://capy-content-dashboard-production.up.railway.app' },
+  { id: 'creative', name: 'Creative', icon: Palette, available: false, url: null },
+  { id: 'influencer', name: 'Influencer', icon: Users, available: false, url: null },
 ];
 
 export function WorkspaceHeader({ userName }: WorkspaceHeaderProps) {
@@ -21,6 +23,12 @@ export function WorkspaceHeader({ userName }: WorkspaceHeaderProps) {
   const handleSelect = (wsId: string) => {
     const ws = workspaces.find(w => w.id === wsId);
     if (ws?.available) {
+      // External workspace - open in new tab
+      if (ws.url) {
+        window.open(ws.url, '_blank');
+        setIsOpen(false);
+        return;
+      }
       setCurrentWorkspace(wsId);
     }
     setIsOpen(false);
@@ -69,17 +77,20 @@ export function WorkspaceHeader({ userName }: WorkspaceHeaderProps) {
                       ws.id === currentWorkspace ? 'text-amber-600' : 'text-gray-400'
                     }`} />
                     <span className="flex-1">{ws.name}</span>
+                    {ws.url && ws.available && (
+                      <ExternalLink className="w-3 h-3 text-gray-400" />
+                    )}
                     {!ws.available && (
                       <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
                         Coming Soon
                       </span>
                     )}
-                    {ws.available && !hasAccess && (
+                    {ws.available && !hasAccess && !ws.url && (
                       <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full">
                         No Access
                       </span>
                     )}
-                    {ws.id === currentWorkspace && (
+                    {ws.id === currentWorkspace && !ws.url && (
                       <span className="text-amber-600">✓</span>
                     )}
                   </button>
