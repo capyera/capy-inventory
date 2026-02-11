@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -17,7 +18,9 @@ import {
   Database,
   LogOut,
   Shield,
-  Truck
+  Truck,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -27,31 +30,131 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
 }
 
-const menuItems = [
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+}
+
+interface MenuSection {
+  id: string;
+  label: string;
+  items: MenuItem[];
+}
+
+// Standalone items (no section)
+const standaloneItems: MenuItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'revenue-planner', label: 'Revenue Planner', icon: Target, badge: 'PRO' },
-  { id: 'ops-calendar', label: 'Ops Calendar', icon: Calendar, badge: 'NEW' },
-  { id: 'products', label: 'Products', icon: Database },
-  { id: 'inventory', label: 'Inventory', icon: Package },
-  { id: 'warehouses', label: 'Warehouses', icon: Warehouse },
-  { id: 'bundles', label: 'Bundles', icon: Layers },
-  { id: 'cogs', label: 'COGS & Margins', icon: DollarSign },
-  { id: 'purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
-  { id: 'inbounds', label: 'Inbounds', icon: Truck },
-  { id: 'suppliers', label: 'Suppliers', icon: Users },
-  { id: 'forecasting', label: 'Forecasting', icon: TrendingUp },
-  { id: 'demand-planning', label: 'Demand Planning', icon: Brain },
-  { id: 'reorder', label: 'Reorder Points', icon: AlertTriangle },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
-const bottomItems = [
+// Grouped menu sections
+const menuSections: MenuSection[] = [
+  {
+    id: 'catalog',
+    label: 'CATALOG',
+    items: [
+      { id: 'products', label: 'Products', icon: Database },
+      { id: 'bundles', label: 'Bundles', icon: Layers },
+    ],
+  },
+  {
+    id: 'inventory',
+    label: 'INVENTORY',
+    items: [
+      { id: 'inventory', label: 'Stock Levels', icon: Package },
+      { id: 'warehouses', label: 'Warehouses', icon: Warehouse },
+    ],
+  },
+  {
+    id: 'supply-chain',
+    label: 'SUPPLY CHAIN',
+    items: [
+      { id: 'purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
+      { id: 'inbounds', label: 'Inbounds', icon: Truck },
+      { id: 'suppliers', label: 'Suppliers', icon: Users },
+    ],
+  },
+  {
+    id: 'planning',
+    label: 'PLANNING',
+    items: [
+      { id: 'forecasting', label: 'Forecasting', icon: TrendingUp },
+      { id: 'demand-planning', label: 'Demand Planning', icon: Brain },
+      { id: 'reorder', label: 'Reorder Points', icon: AlertTriangle },
+    ],
+  },
+  {
+    id: 'finance',
+    label: 'FINANCE',
+    items: [
+      { id: 'cogs', label: 'COGS & Margins', icon: DollarSign },
+      { id: 'revenue-planner', label: 'Revenue Planner', icon: Target, badge: 'PRO' },
+      { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+      { id: 'sales-analytics', label: 'Sales Analytics', icon: TrendingUp },
+    ],
+  },
+  {
+    id: 'ops',
+    label: 'OPS',
+    items: [
+      { id: 'ops-calendar', label: 'Ops Calendar', icon: Calendar },
+    ],
+  },
+];
+
+const bottomItems: MenuItem[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'help', label: 'Help', icon: HelpCircle },
 ];
 
+// Get default collapsed state - expand sections with active items
+function getDefaultCollapsed(activeTab: string): Record<string, boolean> {
+  const collapsed: Record<string, boolean> = {};
+  menuSections.forEach(section => {
+    // Collapse by default, but expand if contains active tab
+    const hasActiveItem = section.items.some(item => item.id === activeTab);
+    collapsed[section.id] = !hasActiveItem;
+  });
+  return collapsed;
+}
+
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const { user, logout } = useAuth();
+  
+  // Load collapsed state from localStorage or use defaults
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('sidebar-collapsed');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return getDefaultCollapsed(activeTab);
+      }
+    }
+    return getDefaultCollapsed(activeTab);
+  });
+  
+  // Save collapsed state to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', JSON.stringify(collapsedSections));
+  }, [collapsedSections]);
+  
+  // When active tab changes, expand its section
+  useEffect(() => {
+    menuSections.forEach(section => {
+      if (section.items.some(item => item.id === activeTab)) {
+        setCollapsedSections(prev => ({ ...prev, [section.id]: false }));
+      }
+    });
+  }, [activeTab]);
+  
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }));
+  };
 
   return (
     <aside className="w-60 bg-white border-r border-slate-200 flex flex-col h-full">
@@ -69,34 +172,47 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       </div>
       
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {/* Standalone items */}
+        {standaloneItems.map((item) => (
+          <NavItem 
+            key={item.id} 
+            item={item} 
+            isActive={activeTab === item.id}
             onClick={() => onTabChange(item.id)}
-            className={cn(
-              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150",
-              activeTab === item.id
-                ? "bg-amber-50 text-amber-700"
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          />
+        ))}
+        
+        {/* Grouped sections */}
+        {menuSections.map((section) => (
+          <div key={section.id} className="mt-4">
+            {/* Section header */}
+            <button
+              onClick={() => toggleSection(section.id)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-[10px] font-semibold text-slate-400 hover:text-slate-600 uppercase tracking-wider transition-colors"
+            >
+              {collapsedSections[section.id] ? (
+                <ChevronRight className="w-3 h-3" />
+              ) : (
+                <ChevronDown className="w-3 h-3" />
+              )}
+              {section.label}
+            </button>
+            
+            {/* Section items */}
+            {!collapsedSections[section.id] && (
+              <div className="mt-1 space-y-0.5">
+                {section.items.map((item) => (
+                  <NavItem 
+                    key={item.id} 
+                    item={item} 
+                    isActive={activeTab === item.id}
+                    onClick={() => onTabChange(item.id)}
+                  />
+                ))}
+              </div>
             )}
-          >
-            <item.icon className={cn(
-              "w-[18px] h-[18px]",
-              activeTab === item.id ? "text-amber-600" : "text-slate-400"
-            )} />
-            <span className="flex-1 text-left">{item.label}</span>
-            {item.badge && (
-              <span className={cn(
-                "text-[10px] font-semibold px-1.5 py-0.5 rounded",
-                item.badge === 'PRO' 
-                  ? "bg-violet-100 text-violet-700"
-                  : "bg-emerald-100 text-emerald-700"
-              )}>
-                {item.badge}
-              </span>
-            )}
-          </button>
+          </div>
         ))}
       </nav>
       
@@ -117,19 +233,12 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           </button>
         )}
         {bottomItems.map((item) => (
-          <button
-            key={item.id}
+          <NavItem 
+            key={item.id} 
+            item={item} 
+            isActive={activeTab === item.id}
             onClick={() => onTabChange(item.id)}
-            className={cn(
-              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors",
-              activeTab === item.id
-                ? "bg-amber-50 text-amber-700"
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-            )}
-          >
-            <item.icon className="w-[18px] h-[18px] text-slate-400" />
-            {item.label}
-          </button>
+          />
         ))}
       </div>
       
@@ -155,5 +264,41 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         </div>
       </div>
     </aside>
+  );
+}
+
+interface NavItemProps {
+  item: MenuItem;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+function NavItem({ item, isActive, onClick }: NavItemProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150",
+        isActive
+          ? "bg-amber-50 text-amber-700"
+          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+      )}
+    >
+      <item.icon className={cn(
+        "w-[18px] h-[18px]",
+        isActive ? "text-amber-600" : "text-slate-400"
+      )} />
+      <span className="flex-1 text-left">{item.label}</span>
+      {item.badge && (
+        <span className={cn(
+          "text-[10px] font-semibold px-1.5 py-0.5 rounded",
+          item.badge === 'PRO' 
+            ? "bg-violet-100 text-violet-700"
+            : "bg-emerald-100 text-emerald-700"
+        )}>
+          {item.badge}
+        </span>
+      )}
+    </button>
   );
 }

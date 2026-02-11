@@ -23,9 +23,11 @@ export interface InventoryItem {
   poQty: number;
   totalAvailable: number;
   velocity3d: number;
+  velocity7d: number;
   velocity14d: number;
   velocity30d: number;
   par3d: number;
+  par7d: number;
   par14d: number;
   par30d: number;
   reorderPoint: number;

@@ -535,17 +535,280 @@ function ProductThumbnail({ sku, size = 'md' }: { sku: string; size?: 'sm' | 'md
 
 export { ProductThumbnail };
 
+// Spreadsheet-style Bulk Edit Page
+interface BulkEditPageProps {
+  selectedSkus: string[];
+  products: ProductMasterData[];
+  onSave: (updates: Map<string, Partial<ProductMasterData>>) => void;
+  onCancel: () => void;
+}
+
+interface EditableRow {
+  sku: string;
+  name: string;
+  category: ProductCategory;
+  subcategory: string;
+  isActive: boolean;
+  cogs: string;
+  retailPrice: string;
+  weight: string;
+}
+
+function BulkEditPage({ selectedSkus, products, onSave, onCancel }: BulkEditPageProps) {
+  // Initialize editable rows from selected products
+  const [rows, setRows] = useState<EditableRow[]>(() => {
+    return selectedSkus.map(sku => {
+      const p = products.find(prod => prod.sku === sku);
+      return {
+        sku,
+        name: p?.name || '',
+        category: p?.category || 'plushies',
+        subcategory: p?.subcategory || '',
+        isActive: p?.isActive !== false,
+        cogs: p?.cogs?.toString() || '',
+        retailPrice: p?.retailPrice?.toString() || '',
+        weight: p?.weight?.toString() || '',
+      };
+    });
+  });
+  
+  const updateRow = (sku: string, field: keyof EditableRow, value: any) => {
+    setRows(prev => prev.map(row => 
+      row.sku === sku ? { ...row, [field]: value } : row
+    ));
+  };
+  
+  const handleSave = () => {
+    const updates = new Map<string, Partial<ProductMasterData>>();
+    
+    rows.forEach(row => {
+      const original = products.find(p => p.sku === row.sku);
+      const changes: Partial<ProductMasterData> = {};
+      
+      if (row.name !== original?.name) changes.name = row.name;
+      if (row.category !== original?.category) changes.category = row.category;
+      if (row.subcategory !== (original?.subcategory || '')) changes.subcategory = row.subcategory || undefined;
+      if (row.isActive !== (original?.isActive !== false)) changes.isActive = row.isActive;
+      if (row.cogs !== (original?.cogs?.toString() || '')) changes.cogs = parseFloat(row.cogs) || 0;
+      if (row.retailPrice !== (original?.retailPrice?.toString() || '')) {
+        changes.retailPrice = row.retailPrice ? parseFloat(row.retailPrice) : undefined;
+      }
+      if (row.weight !== (original?.weight?.toString() || '')) changes.weight = parseFloat(row.weight) || 0;
+      
+      if (Object.keys(changes).length > 0) {
+        updates.set(row.sku, changes);
+      }
+    });
+    
+    onSave(updates);
+  };
+  
+  // Get subcategories for a category
+  const getSubcategories = (category: ProductCategory) => {
+    return PRODUCT_CATEGORIES[category]?.subcategories || [];
+  };
+  
+  return (
+    <div className="flex-1 flex flex-col min-h-0 bg-slate-50">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onCancel} className="text-slate-500 hover:text-slate-700">
+            ← Back
+          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">Editing {rows.length} products</h1>
+            <p className="text-sm text-slate-500">Edit each product individually, then save all changes</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button onClick={handleSave}>
+            <Check className="w-4 h-4 mr-2" />
+            Save Changes
+          </Button>
+        </div>
+      </div>
+      
+      {/* Spreadsheet Table */}
+      <div className="flex-1 overflow-auto p-4">
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 border-b sticky top-0">
+                <tr>
+                  <th className="px-3 py-3 text-left font-medium text-slate-700 min-w-[200px]">Product</th>
+                  <th className="px-3 py-3 text-left font-medium text-slate-700 min-w-[120px]">Status</th>
+                  <th className="px-3 py-3 text-left font-medium text-slate-700 min-w-[140px]">Category</th>
+                  <th className="px-3 py-3 text-left font-medium text-slate-700 min-w-[140px]">Subcategory</th>
+                  <th className="px-3 py-3 text-center font-medium text-slate-700 min-w-[100px]">COGS</th>
+                  <th className="px-3 py-3 text-center font-medium text-slate-700 min-w-[100px]">Retail</th>
+                  <th className="px-3 py-3 text-center font-medium text-slate-700 min-w-[100px]">Weight (g)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rows.map((row) => (
+                  <tr key={row.sku} className="hover:bg-slate-50">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <ProductThumbnail sku={row.sku} size="sm" />
+                        <div className="min-w-0">
+                          <input
+                            type="text"
+                            value={row.name}
+                            onChange={(e) => updateRow(row.sku, 'name', e.target.value)}
+                            className="w-full px-2 py-1 text-sm border border-transparent hover:border-slate-300 focus:border-amber-500 focus:outline-none rounded"
+                          />
+                          <p className="text-xs text-slate-400 font-mono px-2">{row.sku}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={row.isActive ? 'active' : 'inactive'}
+                        onChange={(e) => updateRow(row.sku, 'isActive', e.target.value === 'active')}
+                        className={cn(
+                          "w-full px-2 py-1.5 text-xs font-medium rounded border-0 focus:ring-2 focus:ring-amber-500",
+                          row.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+                        )}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={row.category}
+                        onChange={(e) => {
+                          updateRow(row.sku, 'category', e.target.value as ProductCategory);
+                          updateRow(row.sku, 'subcategory', '');
+                        }}
+                        className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded focus:border-amber-500 focus:outline-none"
+                      >
+                        {Object.entries(PRODUCT_CATEGORIES).map(([key, cat]) => (
+                          <option key={key} value={key}>{cat.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={row.subcategory}
+                        onChange={(e) => updateRow(row.sku, 'subcategory', e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded focus:border-amber-500 focus:outline-none"
+                      >
+                        <option value="">—</option>
+                        {getSubcategories(row.category).map(sub => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={row.cogs}
+                        onChange={(e) => updateRow(row.sku, 'cogs', e.target.value)}
+                        placeholder="0.00"
+                        className="w-full px-2 py-1.5 text-sm text-center border border-slate-200 rounded focus:border-amber-500 focus:outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={row.retailPrice}
+                        onChange={(e) => updateRow(row.sku, 'retailPrice', e.target.value)}
+                        placeholder="—"
+                        className="w-full px-2 py-1.5 text-sm text-center border border-slate-200 rounded focus:border-amber-500 focus:outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        min="0"
+                        value={row.weight}
+                        onChange={(e) => updateRow(row.sku, 'weight', e.target.value)}
+                        placeholder="0"
+                        className="w-full px-2 py-1.5 text-sm text-center border border-slate-200 rounded focus:border-amber-500 focus:outline-none"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // Main Products page
 export function Products() {
   const [products, setProducts] = useState<ProductMasterData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('active');
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductMasterData | null>(null);
   const [bulkImportType, setBulkImportType] = useState<'csv' | 'images' | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ lastSync?: string; status: string; error?: string } | null>(null);
+  
+  // Multi-select state
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+
+  function handleToggleActive(sku: string) {
+    const product = products.find(p => p.sku === sku);
+    if (product) {
+      productRegistry.upsert({ sku, isActive: !product.isActive });
+      loadData();
+    }
+  }
+  
+  // Selection handlers
+  function toggleSelect(sku: string) {
+    setSelectedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(sku)) next.delete(sku);
+      else next.add(sku);
+      return next;
+    });
+  }
+  
+  function selectAll() {
+    if (selectedProducts.size === filteredProducts.length) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(filteredProducts.map(p => p.sku)));
+    }
+  }
+  
+  function clearSelection() {
+    setSelectedProducts(new Set());
+  }
+  
+  function handleBulkEdit(updates: Map<string, Partial<ProductMasterData>>) {
+    updates.forEach((changes, sku) => {
+      productRegistry.upsert({ sku, ...changes });
+    });
+    loadData();
+    setShowBulkEdit(false);
+    setSelectedProducts(new Set());
+  }
+  
+  function handleBulkDelete() {
+    if (!confirm(`Delete ${selectedProducts.size} products? This cannot be undone.`)) return;
+    selectedProducts.forEach(sku => {
+      productRegistry.delete(sku);
+    });
+    loadData();
+    setSelectedProducts(new Set());
+  }
 
   useEffect(() => {
     loadData();
@@ -646,20 +909,37 @@ export function Products() {
         p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
-      return matchesSearch && matchesCategory;
+      const matchesActive = activeFilter === 'all' || 
+        (activeFilter === 'active' && p.isActive !== false) || 
+        (activeFilter === 'inactive' && p.isActive === false);
+      return matchesSearch && matchesCategory && matchesActive;
     });
-  }, [products, searchQuery, categoryFilter]);
+  }, [products, searchQuery, categoryFilter, activeFilter]);
 
   // Stats
   const stats = useMemo(() => {
     const total = products.length;
+    const active = products.filter(p => p.isActive !== false).length;
+    const inactive = products.filter(p => p.isActive === false).length;
     const withImages = products.filter(p => p.imageBase64).length;
     const categories = products.reduce((acc, p) => {
       acc[p.category] = (acc[p.category] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    return { total, withImages, categories };
+    return { total, active, inactive, withImages, categories };
   }, [products]);
+
+  // Show bulk edit page when active
+  if (showBulkEdit) {
+    return (
+      <BulkEditPage
+        selectedSkus={Array.from(selectedProducts)}
+        products={products}
+        onSave={handleBulkEdit}
+        onCancel={() => setShowBulkEdit(false)}
+      />
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -714,6 +994,15 @@ export function Products() {
               placeholder="Search by SKU or name..."
             />
           </div>
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active' | 'inactive')}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <option value="active">Active Only ({stats.active})</option>
+            <option value="inactive">Inactive Only ({stats.inactive})</option>
+            <option value="all">All Products ({stats.total})</option>
+          </select>
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
@@ -822,85 +1111,154 @@ export function Products() {
           </div>
         )}
 
+        {/* Bulk Edit Toolbar */}
+        {selectedProducts.size > 0 && (
+          <Card className="mb-4 border-amber-300 bg-amber-50">
+            <CardContent className="py-3 px-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-amber-800">
+                    {selectedProducts.size} product{selectedProducts.size > 1 ? 's' : ''} selected
+                  </span>
+                  <button
+                    onClick={clearSelection}
+                    className="text-sm text-amber-600 hover:text-amber-800 underline"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowBulkEdit(true)}>
+                    <Edit2 className="w-4 h-4 mr-2" />
+                    Bulk Edit
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleBulkDelete} className="text-red-600 hover:bg-red-50">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Selected
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         {/* Products Table */}
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th className="px-3 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.size === filteredProducts.length && filteredProducts.length > 0}
+                      onChange={selectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Product</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Category</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-700">COGS</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-700">Retail</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-700">Weight</th>
+                  <th className="px-4 py-3 text-center font-medium text-gray-700">Status</th>
+                  <th className="px-4 py-3 text-center font-medium text-gray-700">COGS</th>
+                  <th className="px-4 py-3 text-center font-medium text-gray-700">Retail</th>
+                  <th className="px-4 py-3 text-center font-medium text-gray-700">Weight</th>
                   <th className="px-4 py-3 text-center font-medium text-gray-700">Dimensions</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-700">Actions</th>
+                  <th className="px-4 py-3 text-center font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredProducts.map((product) => (
-                  <tr key={product.sku} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <ProductThumbnail sku={product.sku} />
-                        <div>
-                          <p className="font-medium text-gray-900">{product.name}</p>
-                          <p className="text-xs text-gray-500 font-mono">{product.sku}</p>
+                {filteredProducts.map((product) => {
+                  const isActive = product.isActive !== false;
+                  const isSelected = selectedProducts.has(product.sku);
+                  return (
+                    <tr key={product.sku} className={cn(
+                      "hover:bg-gray-50",
+                      !isActive && "opacity-50 bg-gray-50",
+                      isSelected && "bg-amber-50"
+                    )}>
+                      <td className="px-3 py-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(product.sku)}
+                          className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <ProductThumbnail sku={product.sku} />
+                          <div>
+                            <p className="font-medium text-gray-900">{product.name}</p>
+                            <p className="text-xs text-gray-500 font-mono">{product.sku}</p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
-                        <Badge variant={
-                          product.category === 'plushies' ? 'info' :
-                          product.category === 'clothing' ? 'success' :
-                          product.category === 'accessories' ? 'warning' :
-                          product.category === 'bundles' ? 'default' :
-                          'default'
-                        }>
-                          {PRODUCT_CATEGORIES[product.category]?.label || product.category}
-                        </Badge>
-                        {product.subcategory && (
-                          <span className="text-xs text-gray-500">{product.subcategory}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium">
-                      {formatCurrency(product.cogs)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {product.retailPrice ? formatCurrency(product.retailPrice) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {product.weight > 0 ? `${formatNumber(product.weight)}g` : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-center text-xs text-gray-500">
-                      {product.dimensions.length > 0 
-                        ? `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.height}`
-                        : '-'
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => { setEditingProduct(product); setShowForm(false); }}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={
+                            product.category === 'plushies' ? 'info' :
+                            product.category === 'clothing' ? 'success' :
+                            product.category === 'accessories' ? 'warning' :
+                            product.category === 'bundles' ? 'default' :
+                            'default'
+                          }>
+                            {PRODUCT_CATEGORIES[product.category]?.label || product.category}
+                          </Badge>
+                          {product.subcategory && (
+                            <span className="text-xs text-gray-500">{product.subcategory}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleToggleActive(product.sku)}
+                          className={cn(
+                            "px-2 py-1 rounded-full text-xs font-medium transition-colors",
+                            isActive 
+                              ? "bg-green-100 text-green-700 hover:bg-green-200" 
+                              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          )}
                         >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDeleteProduct(product.sku)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {isActive ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-center font-medium">
+                        {formatCurrency(product.cogs)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {product.retailPrice ? formatCurrency(product.retailPrice) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {product.weight > 0 ? `${formatNumber(product.weight)}g` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center text-xs text-gray-500">
+                        {product.dimensions.length > 0 
+                          ? `${product.dimensions.length}×${product.dimensions.width}×${product.dimensions.height}`
+                          : '-'
+                        }
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => { setEditingProduct(product); setShowForm(false); }}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleDeleteProduct(product.sku)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {filteredProducts.length === 0 && !isLoading && (

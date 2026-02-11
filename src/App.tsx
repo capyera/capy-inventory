@@ -1,6 +1,42 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './pages/Dashboard';
+
+// ============ MIGRATION: Feb 11, 2026 Fresh Start ============
+// Clears POs, inbounds, and inventory data for clean reset
+// Only runs once per browser
+const MIGRATION_KEY = 'capy-migration-version';
+const CURRENT_MIGRATION = 1;
+
+function runMigrations() {
+  const lastMigration = parseInt(localStorage.getItem(MIGRATION_KEY) || '0', 10);
+  
+  if (lastMigration < 1) {
+    console.log('[Migration 1] Fresh Start - Clearing POs, inbounds, inventory...');
+    
+    // Clear Purchase Orders
+    localStorage.removeItem('capy-purchase-orders');
+    
+    // Clear Inbounds
+    localStorage.removeItem('capy-inbounds');
+    localStorage.removeItem('capy-inbound-history');
+    
+    // Clear inventory data (separate from product master data)
+    localStorage.removeItem('capy-inventory');
+    localStorage.removeItem('capy-inventory-snapshots');
+    
+    // Clear warehouse transfers
+    localStorage.removeItem('capy-warehouse-transfers');
+    
+    // Keep: product registry, suppliers, bundles, velocity data
+    console.log('[Migration 1] Complete. Ready for fresh data.');
+  }
+  
+  localStorage.setItem(MIGRATION_KEY, String(CURRENT_MIGRATION));
+}
+
+// Run migrations immediately on module load
+runMigrations();
 import { Inventory } from './pages/Inventory';
 import { Warehouses } from './pages/Warehouses';
 import { Bundles } from './pages/Bundles';
@@ -15,6 +51,7 @@ import { ReorderPoints } from './pages/ReorderPoints';
 import { RevenueTargetPlanner } from './pages/RevenueTargetPlanner';
 import { OpsCalendar } from './pages/OpsCalendar';
 import { Analytics } from './pages/Analytics';
+import { SalesAnalytics } from './pages/SalesAnalytics';
 import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
 import { Settings } from './pages/Settings';
@@ -25,28 +62,62 @@ import { WorkspaceHeader } from './components/layout/WorkspaceHeader';
 const VALID_TABS = [
   'dashboard', 'products', 'inventory', 'warehouses', 'bundles', 'cogs',
   'purchase-orders', 'inbounds', 'suppliers', 'forecasting', 'demand-planning',
-  'reorder', 'revenue-planner', 'ops-calendar', 'analytics', 'admin', 'settings', 'help'
+  'reorder', 'revenue-planner', 'ops-calendar', 'analytics', 'sales-analytics', 'admin', 'settings', 'help'
 ];
 
-function getTabFromHash(): string {
+interface HashState {
+  tab: string;
+  params: Record<string, string>;
+}
+
+function parseHash(): HashState {
   const hash = window.location.hash.replace('#', '');
-  return VALID_TABS.includes(hash) ? hash : 'dashboard';
+  const [tab, queryString] = hash.split('?');
+  const params: Record<string, string> = {};
+  
+  if (queryString) {
+    queryString.split('&').forEach(pair => {
+      const [key, value] = pair.split('=');
+      if (key && value) {
+        params[decodeURIComponent(key)] = decodeURIComponent(value);
+      }
+    });
+  }
+  
+  return {
+    tab: VALID_TABS.includes(tab) ? tab : 'dashboard',
+    params,
+  };
+}
+
+function getTabFromHash(): string {
+  return parseHash().tab;
 }
 
 function AuthenticatedApp() {
-  const [activeTab, setActiveTab] = useState(getTabFromHash);
+  const [hashState, setHashState] = useState<HashState>(parseHash);
   const { user } = useAuth();
+  
+  const activeTab = hashState.tab;
+  const hashParams = hashState.params;
 
   // Sync tab changes to URL hash
-  const handleTabChange = useCallback((tab: string) => {
-    setActiveTab(tab);
-    window.location.hash = tab;
+  const handleTabChange = useCallback((tab: string, params?: Record<string, string>) => {
+    let hash = tab;
+    if (params && Object.keys(params).length > 0) {
+      const queryString = Object.entries(params)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&');
+      hash = `${tab}?${queryString}`;
+    }
+    window.location.hash = hash;
+    setHashState({ tab, params: params || {} });
   }, []);
 
   // Listen for browser back/forward
   useEffect(() => {
     const handleHashChange = () => {
-      setActiveTab(getTabFromHash());
+      setHashState(parseHash());
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
@@ -59,9 +130,9 @@ function AuthenticatedApp() {
       case 'products':
         return <Products />;
       case 'inventory':
-        return <Inventory />;
+        return <Inventory initialWarehouse={hashParams.warehouse} />;
       case 'warehouses':
-        return <Warehouses />;
+        return <Warehouses onNavigate={handleTabChange} />;
       case 'bundles':
         return <Bundles />;
       case 'cogs':
@@ -84,6 +155,8 @@ function AuthenticatedApp() {
         return <OpsCalendar />;
       case 'analytics':
         return <Analytics />;
+      case 'sales-analytics':
+        return <SalesAnalytics />;
       case 'admin':
         return <Admin onBack={() => handleTabChange('dashboard')} />;
       case 'settings':

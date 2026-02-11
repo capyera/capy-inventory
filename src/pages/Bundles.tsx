@@ -444,7 +444,7 @@ export function Bundles() {
                   <th className="px-4 py-3 text-left font-medium text-slate-700 w-8"></th>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Bundle</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Components</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">COGS</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">COGS</th>
                   <th className="px-4 py-3 text-center font-medium text-slate-700">Availability</th>
                   <th className="px-4 py-3 text-center font-medium text-slate-700">Status</th>
                   <th className="px-4 py-3 text-right font-medium text-slate-700">Actions</th>
@@ -490,7 +490,7 @@ export function Bundles() {
                             {bundle.components.length} items: {bundle.components.map(c => c.sku).join(' + ')}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium">
+                        <td className="px-4 py-3 text-center font-medium">
                           {formatCurrency(cogs)}
                         </td>
                         <td className="px-4 py-3 text-center">

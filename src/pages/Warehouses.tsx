@@ -149,12 +149,22 @@ function WarehouseForm({ warehouse, onSave, onCancel }: WarehouseFormProps) {
   );
 }
 
-export function Warehouses() {
+interface WarehousesProps {
+  onNavigate?: (tab: string, params?: Record<string, string>) => void;
+}
+
+export function Warehouses({ onNavigate }: WarehousesProps) {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
+
+  function handleViewInventory(warehouseId: string) {
+    if (onNavigate) {
+      onNavigate('inventory', { warehouse: warehouseId });
+    }
+  }
 
   useEffect(() => {
     loadData();
@@ -234,7 +244,10 @@ export function Warehouses() {
       <div className="flex-1 overflow-y-auto p-6">
         {/* Primary Warehouse Card */}
         {primaryWarehouse && (
-          <Card className="mb-6 border-2 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
+          <Card 
+            className="mb-6 border-2 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => handleViewInventory(primaryWarehouse.id)}
+          >
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4">
@@ -252,7 +265,7 @@ export function Warehouses() {
                       <span>{primaryWarehouse.location}, {primaryWarehouse.country}</span>
                     </div>
                     <p className="text-sm text-slate-500 mt-2">
-                      All current inventory is stored at this location
+                      Click to view inventory at this location
                     </p>
                   </div>
                 </div>
@@ -317,13 +330,17 @@ export function Warehouses() {
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Location</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Type</th>
                   <th className="px-4 py-3 text-center font-medium text-slate-700">Status</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Units</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">Units</th>
                   <th className="px-4 py-3 text-right font-medium text-slate-700">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {warehouses.map((wh) => (
-                  <tr key={wh.id} className="hover:bg-slate-50">
+                  <tr 
+                    key={wh.id} 
+                    className="hover:bg-slate-50 cursor-pointer"
+                    onClick={() => handleViewInventory(wh.id)}
+                  >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
@@ -351,11 +368,11 @@ export function Warehouses() {
                         {wh.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium">
+                    <td className="px-4 py-3 text-center font-medium">
                       {wh.isPrimary ? formatNumber(stats.totalUnits) : '0'}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button
                           variant="ghost"
                           size="sm"

@@ -63,9 +63,11 @@ export const inventoryApi = {
         poQty: 0,
         totalAvailable: item.currentQty,
         velocity3d: 0,
+        velocity7d: 0,
         velocity14d: 0,
         velocity30d: 0,
         par3d: 999,
+        par7d: 999,
         par14d: 999,
         par30d: 999,
         reorderPoint: 100,
@@ -109,6 +111,7 @@ export const inventoryApi = {
       const v30 = velocity?.velocity30d || 0;
       const v14 = velocity?.velocity14d || 0;
       const v7 = velocity?.velocity7d || 0;
+      const v3 = v7 * 1.1; // Estimate 3d from 7d (typically more volatile)
       
       return {
         id: item.sku,
@@ -119,10 +122,12 @@ export const inventoryApi = {
         inboundQty: 0, // Would need separate tracking
         poQty: 0,
         totalAvailable: item.shopifyQuantity,
-        velocity3d: v7,
+        velocity3d: v3,
+        velocity7d: v7,
         velocity14d: v14,
         velocity30d: v30,
-        par3d: v7 > 0 ? Math.round(item.shopifyQuantity / v7) : 999,
+        par3d: v3 > 0 ? Math.round(item.shopifyQuantity / v3) : 999,
+        par7d: v7 > 0 ? Math.round(item.shopifyQuantity / v7) : 999,
         par14d: v14 > 0 ? Math.round(item.shopifyQuantity / v14) : 999,
         par30d: v30 > 0 ? Math.round(item.shopifyQuantity / v30) : 999,
         reorderPoint: Math.round(v30 * 14), // 2 weeks
@@ -447,8 +452,23 @@ function getCategoryFromType(productType: string): string {
   return 'plushie';
 }
 
-// Mock data for development
+// Check if fresh start mode (migration has run)
+function isFreshStartMode(): boolean {
+  const migrationVersion = parseInt(localStorage.getItem('capy-migration-version') || '0', 10);
+  const hasUploadedInventory = localStorage.getItem('capy-inventory-uploaded') === 'true';
+  // Fresh start: migration ran but no inventory uploaded yet
+  return migrationVersion >= 1 && !hasUploadedInventory;
+}
+
+// Mark inventory as uploaded (call this after CSV import)
+export function markInventoryUploaded(): void {
+  localStorage.setItem('capy-inventory-uploaded', 'true');
+}
+
+// Mock data for development - returns zeros in fresh start mode
 function getMockInventory(): InventoryItem[] {
+  const freshStart = isFreshStartMode();
+  
   const products = [
     { sku: 'OG-M-009', name: 'Cherry Capybara 10"', category: 'plushie', qty: 1250, v30: 42 },
     { sku: 'OG-M-002', name: 'Strawberry Capybara 10"', category: 'plushie', qty: 890, v30: 35 },
@@ -472,27 +492,37 @@ function getMockInventory(): InventoryItem[] {
     { sku: 'LE-M-008', name: 'White Choco Valentine', category: 'plushie', qty: 195, v30: 32 },
   ];
   
-  return products.map(p => ({
-    id: p.sku,
-    sku: p.sku,
-    productName: p.name,
-    category: p.category,
-    currentQty: p.qty,
-    inboundQty: Math.random() > 0.7 ? Math.round(Math.random() * 500) : 0,
-    poQty: Math.random() > 0.8 ? Math.round(Math.random() * 1000) : 0,
-    totalAvailable: p.qty,
-    velocity3d: p.v30 * (0.8 + Math.random() * 0.4),
-    velocity14d: p.v30 * (0.9 + Math.random() * 0.2),
-    velocity30d: p.v30,
-    par3d: p.v30 > 0 ? Math.round(p.qty / (p.v30 * 1.1)) : 999,
-    par14d: p.v30 > 0 ? Math.round(p.qty / p.v30) : 999,
-    par30d: p.v30 > 0 ? Math.round(p.qty / (p.v30 * 0.9)) : 999,
-    reorderPoint: p.v30 * 14,
-    reorderQty: p.v30 * 30,
-    lastUpdated: new Date(),
-    cost: p.category === 'charm' ? 4.50 : 8.25,
-    price: p.category === 'charm' ? 13.53 : 16.19,
-  }));
+  return products.map(p => {
+    const v3d = p.v30 * (0.8 + Math.random() * 0.4);
+    const v7d = p.v30 * (0.85 + Math.random() * 0.3);
+    const v14d = p.v30 * (0.9 + Math.random() * 0.2);
+    const v30d = p.v30;
+    // In fresh start mode, all quantities are zero
+    const currentQty = freshStart ? 0 : p.qty;
+    return {
+      id: p.sku,
+      sku: p.sku,
+      productName: p.name,
+      category: p.category,
+      currentQty: currentQty,
+      inboundQty: freshStart ? 0 : (Math.random() > 0.7 ? Math.round(Math.random() * 500) : 0),
+      poQty: 0,
+      totalAvailable: currentQty,
+      velocity3d: v3d,
+      velocity7d: v7d,
+      velocity14d: v14d,
+      velocity30d: v30d,
+      par3d: v3d > 0 ? Math.round(currentQty / v3d) : 999,
+      par7d: v7d > 0 ? Math.round(currentQty / v7d) : 999,
+      par14d: v14d > 0 ? Math.round(currentQty / v14d) : 999,
+      par30d: v30d > 0 ? Math.round(currentQty / v30d) : 999,
+      reorderPoint: p.v30 * 14,
+      reorderQty: p.v30 * 30,
+      lastUpdated: new Date(),
+      cost: p.category === 'charm' ? 4.50 : 8.25,
+      price: p.category === 'charm' ? 13.53 : 16.19,
+    };
+  });
 }
 
 // getMockBundles removed - now using bundleRegistry
