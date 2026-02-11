@@ -14,9 +14,14 @@ import { ReorderPoints } from './pages/ReorderPoints';
 import { RevenueTargetPlanner } from './pages/RevenueTargetPlanner';
 import { OpsCalendar } from './pages/OpsCalendar';
 import { Analytics } from './pages/Analytics';
+import { Login } from './pages/Login';
+import { Admin } from './pages/Admin';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { WorkspaceHeader } from './components/layout/WorkspaceHeader';
 
-function App() {
+function AuthenticatedApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const { user } = useAuth();
 
   const renderPage = () => {
     switch (activeTab) {
@@ -48,6 +53,8 @@ function App() {
         return <OpsCalendar />;
       case 'analytics':
         return <Analytics />;
+      case 'admin':
+        return <Admin onBack={() => setActiveTab('dashboard')} />;
       case 'settings':
         return <SettingsPlaceholder />;
       case 'help':
@@ -61,9 +68,28 @@ function App() {
     <div className="flex h-screen bg-gray-50">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <main className="flex-1 flex flex-col overflow-hidden">
+        <WorkspaceHeader userName={user?.name || 'User'} />
         {renderPage()}
       </main>
     </div>
+  );
+}
+
+function AppContent() {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Login />;
+  }
+
+  return <AuthenticatedApp />;
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

@@ -14,9 +14,12 @@ import {
   Brain,
   Target,
   Calendar,
-  Database
+  Database,
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -27,7 +30,7 @@ const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'revenue-planner', label: 'Revenue Planner', icon: Target, badge: 'PRO' },
   { id: 'ops-calendar', label: 'Ops Calendar', icon: Calendar, badge: 'NEW' },
-  { id: 'products', label: 'Products', icon: Database, badge: 'NEW' },
+  { id: 'products', label: 'Products', icon: Database },
   { id: 'inventory', label: 'Inventory', icon: Package },
   { id: 'warehouses', label: 'Warehouses', icon: Warehouse },
   { id: 'bundles', label: 'Bundles', icon: Layers },
@@ -46,6 +49,8 @@ const bottomItems = [
 ];
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+  const { user, logout } = useAuth();
+
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
       {/* Logo */}
@@ -56,7 +61,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           </div>
           <div>
             <h1 className="font-bold text-gray-900">Capy Inventory</h1>
-            <p className="text-xs text-gray-500">Management Suite</p>
+            <p className="text-xs text-gray-500">Operations Workspace</p>
           </div>
         </div>
       </div>
@@ -94,7 +99,22 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       </nav>
       
       {/* Bottom items */}
-      <div className="px-4 py-4 border-t border-gray-200">
+      <div className="px-4 py-4 border-t border-gray-200 space-y-1">
+        {/* Admin - only for admins */}
+        {user?.role === 'admin' && (
+          <button
+            onClick={() => onTabChange('admin')}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              activeTab === 'admin'
+                ? "bg-purple-50 text-purple-700"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+            )}
+          >
+            <Shield className="w-5 h-5 text-purple-500" />
+            Admin
+          </button>
+        )}
         {bottomItems.map((item) => (
           <button
             key={item.id}
@@ -116,12 +136,21 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       <div className="px-4 py-4 border-t border-gray-200">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
-            <span className="text-amber-700 font-medium text-sm">J</span>
+            <span className="text-amber-700 font-medium text-sm">
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
+            </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">James</p>
-            <p className="text-xs text-gray-500 truncate">Capy-Era</p>
+            <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'User'}</p>
+            <p className="text-xs text-gray-500 truncate">{user?.role === 'admin' ? 'Admin' : 'Member'}</p>
           </div>
+          <button
+            onClick={logout}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4 text-gray-400" />
+          </button>
         </div>
       </div>
     </aside>
