@@ -16,6 +16,7 @@ import { OpsCalendar } from './pages/OpsCalendar';
 import { Analytics } from './pages/Analytics';
 import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
+import { Settings } from './pages/Settings';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WorkspaceHeader } from './components/layout/WorkspaceHeader';
 
@@ -56,7 +57,7 @@ function AuthenticatedApp() {
       case 'admin':
         return <Admin onBack={() => setActiveTab('dashboard')} />;
       case 'settings':
-        return <SettingsPlaceholder />;
+        return <Settings />;
       case 'help':
         return <HelpPlaceholder />;
       default:
@@ -90,34 +91,6 @@ function App() {
     <AuthProvider>
       <AppContent />
     </AuthProvider>
-  );
-}
-
-function SettingsPlaceholder() {
-  return (
-    <div className="flex-1 flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
-          <span className="text-2xl">⚙️</span>
-        </div>
-        <h2 className="text-xl font-semibold text-gray-900">Settings</h2>
-        <p className="text-gray-500 mt-2">Configure your inventory settings</p>
-        <div className="mt-6 space-y-3 max-w-sm mx-auto text-left">
-          <div className="bg-white p-4 rounded-lg border">
-            <h3 className="font-medium">Shopify Connection</h3>
-            <p className="text-sm text-green-600 mt-1">✓ Connected to 152919-65.myshopify.com</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg border">
-            <h3 className="font-medium">Convex Database</h3>
-            <p className="text-sm text-green-600 mt-1">✓ Connected</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg border">
-            <h3 className="font-medium">Google Sheets</h3>
-            <p className="text-sm text-green-600 mt-1">✓ Synced with inventory sheet</p>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
