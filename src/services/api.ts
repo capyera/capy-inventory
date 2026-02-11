@@ -1,8 +1,17 @@
 import type { InventoryItem, PurchaseOrder, Supplier, Bundle, COGSRecord, DashboardStats, AlertItem, ForecastSKU } from '../types';
+import { shopifyApi, shopifyData, shopifyTransform, type SKUInventoryData, type SKUVelocityData } from './shopify';
 
 // API Configuration
 const CONVEX_URL = 'https://adventurous-fennec-839.convex.cloud';
-// const SHOPIFY_STORE = '152919-65.myshopify.com';
+
+// Feature flag: Use real Shopify data
+const USE_SHOPIFY = import.meta.env.VITE_USE_SHOPIFY === 'true' || false;
+
+// Shopify data cache
+let shopifyInventoryCache: SKUInventoryData[] | null = null;
+let shopifyVelocityCache: Map<string, SKUVelocityData> | null = null;
+let shopifyCacheTime: number = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Helper to make Convex API calls
 async function convexQuery<T>(functionName: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -26,6 +35,16 @@ async function convexQuery<T>(functionName: string, args: Record<string, unknown
 // Inventory API
 export const inventoryApi = {
   async getAll(): Promise<InventoryItem[]> {
+    // Try Shopify first if enabled
+    if (USE_SHOPIFY) {
+      try {
+        return await this.getFromShopify();
+      } catch (error) {
+        console.warn('Shopify fetch failed, falling back to mock data:', error);
+      }
+    }
+    
+    // Try Convex
     try {
       const data = await convexQuery<Array<{
         sku: string;
@@ -59,14 +78,89 @@ export const inventoryApi = {
     }
   },
   
+  async getFromShopify(): Promise<InventoryItem[]> {
+    const now = Date.now();
+    
+    // Use cache if valid
+    if (shopifyInventoryCache && shopifyVelocityCache && now - shopifyCacheTime < CACHE_TTL) {
+      return this.transformShopifyData(shopifyInventoryCache, shopifyVelocityCache);
+    }
+    
+    // Fetch fresh data from Shopify
+    const [inventory, velocityMap] = await Promise.all([
+      shopifyData.getSKUInventory(),
+      shopifyData.getSKUVelocity(30),
+    ]);
+    
+    // Update cache
+    shopifyInventoryCache = inventory;
+    shopifyVelocityCache = velocityMap;
+    shopifyCacheTime = now;
+    
+    return this.transformShopifyData(inventory, velocityMap);
+  },
+  
+  transformShopifyData(
+    inventory: SKUInventoryData[], 
+    velocityMap: Map<string, SKUVelocityData>
+  ): InventoryItem[] {
+    return inventory.map(item => {
+      const velocity = velocityMap.get(item.sku);
+      const v30 = velocity?.velocity30d || 0;
+      const v14 = velocity?.velocity14d || 0;
+      const v7 = velocity?.velocity7d || 0;
+      
+      return {
+        id: item.sku,
+        sku: item.sku,
+        productName: `${item.productTitle}${item.variantTitle !== 'Default Title' ? ` - ${item.variantTitle}` : ''}`,
+        category: getCategoryFromSKU(item.sku) || getCategoryFromType(item.productType),
+        currentQty: item.shopifyQuantity,
+        inboundQty: 0, // Would need separate tracking
+        poQty: 0,
+        totalAvailable: item.shopifyQuantity,
+        velocity3d: v7,
+        velocity14d: v14,
+        velocity30d: v30,
+        par3d: v7 > 0 ? Math.round(item.shopifyQuantity / v7) : 999,
+        par14d: v14 > 0 ? Math.round(item.shopifyQuantity / v14) : 999,
+        par30d: v30 > 0 ? Math.round(item.shopifyQuantity / v30) : 999,
+        reorderPoint: Math.round(v30 * 14), // 2 weeks
+        reorderQty: Math.round(v30 * 45), // 6 weeks
+        lastUpdated: new Date(),
+        cost: item.price * 0.5, // Estimate 50% margin
+        price: item.price,
+      };
+    });
+  },
+  
   async getBySku(sku: string): Promise<InventoryItem | null> {
     const all = await this.getAll();
     return all.find(item => item.sku === sku) || null;
   },
   
   async updateQuantity(sku: string, quantity: number): Promise<void> {
-    // This would call a Convex mutation
+    // This would call a Convex mutation or Shopify API
     console.log(`Updating ${sku} to ${quantity}`);
+  },
+  
+  async syncFromShopify(): Promise<{ products: number; orders: number }> {
+    shopifyData.clearCache();
+    
+    const [products, orders] = await Promise.all([
+      shopifyApi.getProducts(),
+      shopifyApi.getRecentOrders(30),
+    ]);
+    
+    // Update caches
+    shopifyInventoryCache = shopifyTransform.productsToSKUData(products);
+    shopifyVelocityCache = shopifyTransform.ordersToVelocityData(orders);
+    shopifyCacheTime = Date.now();
+    
+    return {
+      products: products.length,
+      orders: orders.length,
+    };
   },
 };
 
@@ -79,11 +173,13 @@ export const dashboardApi = {
     const lowStockCount = inventory.filter(item => item.currentQty > 0 && item.currentQty < 50).length;
     const outOfStockCount = inventory.filter(item => item.currentQty === 0).length;
     
-    // Calculate total value (assuming average cost of $8 per unit for plushies)
+    // Calculate total value using actual prices
     const totalValue = inventory.reduce((sum, item) => {
-      const unitCost = item.category === 'charm' ? 4 : 8;
+      const unitCost = item.cost || (item.category === 'charm' ? 4 : 8);
       return sum + (item.currentQty * unitCost);
     }, 0);
+    
+    const avgVelocity = inventory.reduce((sum, i) => sum + i.velocity30d, 0) / inventory.length || 0;
     
     return {
       totalSKUs: inventory.length,
@@ -91,9 +187,9 @@ export const dashboardApi = {
       totalValue,
       lowStockCount,
       outOfStockCount,
-      inboundValue: 0,
-      averageVelocity: inventory.reduce((sum, i) => sum + i.velocity30d, 0) / inventory.length || 0,
-      turnoverRate: 4.2,
+      inboundValue: inventory.reduce((sum, i) => sum + (i.inboundQty * (i.cost || 8)), 0),
+      averageVelocity: avgVelocity,
+      turnoverRate: avgVelocity > 0 ? (avgVelocity * 365) / (totalUnits / inventory.length) : 0,
     };
   },
   
@@ -102,6 +198,8 @@ export const dashboardApi = {
     const alerts: AlertItem[] = [];
     
     inventory.forEach(item => {
+      const daysOfStock = item.velocity30d > 0 ? item.currentQty / item.velocity30d : 999;
+      
       if (item.currentQty === 0) {
         alerts.push({
           id: `alert-${item.sku}-stockout`,
@@ -113,21 +211,85 @@ export const dashboardApi = {
           createdAt: new Date(),
           isRead: false,
         });
-      } else if (item.currentQty < 30) {
+      } else if (daysOfStock < 7) {
+        alerts.push({
+          id: `alert-${item.sku}-critical`,
+          type: 'low_stock',
+          severity: 'critical',
+          sku: item.sku,
+          productName: item.productName,
+          message: `${item.productName} has only ${Math.round(daysOfStock)} days of stock!`,
+          createdAt: new Date(),
+          isRead: false,
+        });
+      } else if (daysOfStock < 14) {
         alerts.push({
           id: `alert-${item.sku}-low`,
           type: 'low_stock',
           severity: 'warning',
           sku: item.sku,
           productName: item.productName,
-          message: `${item.productName} is running low (${item.currentQty} units)`,
+          message: `${item.productName} is running low (${item.currentQty} units, ${Math.round(daysOfStock)} days)`,
           createdAt: new Date(),
           isRead: false,
         });
       }
     });
     
-    return alerts.slice(0, 10);
+    return alerts.sort((a, b) => {
+      const severityOrder = { critical: 0, warning: 1, info: 2 };
+      return severityOrder[a.severity] - severityOrder[b.severity];
+    }).slice(0, 10);
+  },
+  
+  async getShopifyStats(): Promise<{
+    connected: boolean;
+    productCount: number;
+    orderCount30d: number;
+    revenue30d: number;
+    aov: number;
+    newCustomerPct: number;
+    lastSync: Date | null;
+  }> {
+    if (!USE_SHOPIFY) {
+      return {
+        connected: false,
+        productCount: 0,
+        orderCount30d: 0,
+        revenue30d: 0,
+        aov: 0,
+        newCustomerPct: 0,
+        lastSync: null,
+      };
+    }
+    
+    try {
+      const summary = await shopifyData.getOrderSummary(30);
+      const productCount = await shopifyApi.getProductCount();
+      
+      return {
+        connected: true,
+        productCount,
+        orderCount30d: summary.totalOrders,
+        revenue30d: summary.totalRevenue,
+        aov: summary.averageOrderValue,
+        newCustomerPct: summary.totalOrders > 0 
+          ? (summary.newCustomerOrders / summary.totalOrders) * 100 
+          : 0,
+        lastSync: new Date(),
+      };
+    } catch (error) {
+      console.error('Failed to fetch Shopify stats:', error);
+      return {
+        connected: false,
+        productCount: 0,
+        orderCount30d: 0,
+        revenue30d: 0,
+        aov: 0,
+        newCustomerPct: 0,
+        lastSync: null,
+      };
+    }
   },
 };
 
@@ -192,6 +354,15 @@ function getCategoryFromSKU(sku: string): string {
   if (sku.includes('DUO') || sku.includes('FAMILY')) return 'bundle';
   if (sku.includes('-L-')) return 'jumbo';
   if (sku.includes('-M-')) return 'plushie';
+  return 'plushie';
+}
+
+function getCategoryFromType(productType: string): string {
+  const type = productType.toLowerCase();
+  if (type.includes('charm') || type.includes('keychain')) return 'charm';
+  if (type.includes('bundle')) return 'bundle';
+  if (type.includes('jumbo') || type.includes('large')) return 'jumbo';
+  if (type.includes('clothing') || type.includes('shirt') || type.includes('hoodie')) return 'clothing';
   return 'plushie';
 }
 
