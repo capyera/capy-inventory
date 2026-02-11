@@ -2,6 +2,21 @@
  * Supplier Registry - localStorage-based supplier management
  */
 
+// Supplier categories
+export const SUPPLIER_CATEGORIES = [
+  'Plush Toys',
+  'Apparels',
+  'Accessories',
+  'Bags',
+  'Packaging',
+  'Auxiliary Materials',
+  '3PL',
+  'Marketing',
+  'Other',
+] as const;
+
+export type SupplierCategory = typeof SUPPLIER_CATEGORIES[number];
+
 export interface SupplierData {
   id: string;
   code: string;
@@ -9,7 +24,8 @@ export interface SupplierData {
   category: string;
   email?: string;
   phone?: string;
-  leadTimeDays?: number;
+  address?: string;
+  skus?: string[]; // SKUs this supplier can produce
   paymentTerms?: string;
   notes?: string;
 }
@@ -47,6 +63,13 @@ export const supplierRegistry = {
 
   getById(id: string): SupplierData | undefined {
     return loadSuppliers().find(s => s.id === id);
+  },
+
+  /**
+   * Get suppliers that produce a specific SKU
+   */
+  getBySku(sku: string): SupplierData[] {
+    return loadSuppliers().filter(s => s.skus?.includes(sku));
   },
 
   create(data: Omit<SupplierData, 'id'>): SupplierData {
