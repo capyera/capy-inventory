@@ -9,7 +9,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input, SearchInput } from '../components/ui/Input';
 import { Header } from '../components/layout/Header';
-import { productRegistry, parseCSV, type ProductMasterData, type ProductCSVRow } from '../services/productRegistry';
+import { productRegistry, parseCSV, PRODUCT_CATEGORIES, type ProductMasterData, type ProductCSVRow, type ProductCategory } from '../services/productRegistry';
 import { formatCurrency, formatNumber, cn } from '../lib/utils';
 
 // Product form component
@@ -23,7 +23,8 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
   const [formData, setFormData] = useState({
     sku: product?.sku || '',
     name: product?.name || '',
-    category: product?.category || 'plushie',
+    category: (product?.category || 'plushies') as ProductCategory,
+    subcategory: product?.subcategory || '',
     cogs: product?.cogs?.toString() || '',
     weight: product?.weight?.toString() || '',
     length: product?.dimensions?.length?.toString() || '',
@@ -67,7 +68,8 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
     onSave({
       sku: formData.sku.trim().toUpperCase(),
       name: formData.name.trim(),
-      category: formData.category as ProductMasterData['category'],
+      category: formData.category,
+      subcategory: formData.subcategory || undefined,
       cogs: parseFloat(formData.cogs) || 0,
       weight: parseFloat(formData.weight) || 0,
       dimensions: {
@@ -147,16 +149,25 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
               <select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductMasterData['category'] })}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductCategory, subcategory: '' })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
-                <option value="plushie">Plushie</option>
-                <option value="jumbo">Jumbo</option>
-                <option value="charm">Charm</option>
-                <option value="clothing">Clothing</option>
-                <option value="accessory">Accessory</option>
-                <option value="bundle">Bundle</option>
-                <option value="other">Other</option>
+                {Object.entries(PRODUCT_CATEGORIES).map(([key, cat]) => (
+                  <option key={key} value={key}>{cat.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
+              <select
+                value={formData.subcategory}
+                onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">Select subcategory...</option>
+                {PRODUCT_CATEGORIES[formData.category]?.subcategories.map((sub) => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
               </select>
             </div>
             
@@ -348,7 +359,7 @@ function BulkImportModal({ type, onClose, onComplete }: BulkImportModalProps) {
                 </p>
                 <p className="text-sm text-gray-500 mt-2">
                   {type === 'csv' 
-                    ? 'Columns: sku, name, category, cogs, weight, length, width, height'
+                    ? 'Columns: sku, name, category, subcategory, cogs, weight, length, width, height'
                     : 'Name files by SKU (e.g., OG-M-009.jpg) for auto-matching'
                   }
                 </p>
@@ -358,9 +369,10 @@ function BulkImportModal({ type, onClose, onComplete }: BulkImportModalProps) {
                 <div className="mt-6 text-left">
                   <p className="text-sm font-medium text-gray-700 mb-2">Example CSV format:</p>
                   <pre className="bg-gray-100 p-3 rounded text-xs overflow-x-auto">
-{`sku,name,category,cogs,weight,length,width,height
-OG-M-001,Orange Capybara 10",plushie,8.25,180,25,20,15
-OG-KEY-001,Orange Bag Charm,charm,4.50,35,8,6,4`}
+{`sku,name,category,subcategory,cogs,weight,length,width,height
+OG-M-001,Orange Capybara 10",plushies,10" Plushie,8.25,180,25,20,15
+OG-KEY-001,Orange Bag Charm,plushies,Bag Charm,4.50,35,8,6,4
+HOOD-K-001,Kids Orange Hoodie,clothing,Kids Hoodie,12.00,300,0,0,0`}
                   </pre>
                 </div>
               )}
@@ -676,19 +688,19 @@ export function Products() {
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-gray-500 font-medium uppercase">Plushies</p>
-              <p className="text-2xl font-bold">{stats.categories.plushie || 0}</p>
+              <p className="text-2xl font-bold">{stats.categories.plushies || 0}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-gray-500 font-medium uppercase">Charms</p>
-              <p className="text-2xl font-bold">{stats.categories.charm || 0}</p>
+              <p className="text-xs text-gray-500 font-medium uppercase">Clothing</p>
+              <p className="text-2xl font-bold">{stats.categories.clothing || 0}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-gray-500 font-medium uppercase">Jumbo</p>
-              <p className="text-2xl font-bold">{stats.categories.jumbo || 0}</p>
+              <p className="text-xs text-gray-500 font-medium uppercase">Accessories</p>
+              <p className="text-2xl font-bold">{stats.categories.accessories || 0}</p>
             </CardContent>
           </Card>
         </div>
@@ -708,13 +720,9 @@ export function Products() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
             <option value="all">All Categories</option>
-            <option value="plushie">Plushie</option>
-            <option value="jumbo">Jumbo</option>
-            <option value="charm">Charm</option>
-            <option value="clothing">Clothing</option>
-            <option value="accessory">Accessory</option>
-            <option value="bundle">Bundle</option>
-            <option value="other">Other</option>
+            {Object.entries(PRODUCT_CATEGORIES).map(([key, cat]) => (
+              <option key={key} value={key}>{cat.label}</option>
+            ))}
           </select>
           <div className="flex gap-2">
             <div className="relative group">
@@ -842,14 +850,20 @@ export function Products() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={
-                        product.category === 'plushie' ? 'info' :
-                        product.category === 'charm' ? 'success' :
-                        product.category === 'jumbo' ? 'warning' :
-                        'default'
-                      }>
-                        {product.category}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={
+                          product.category === 'plushies' ? 'info' :
+                          product.category === 'clothing' ? 'success' :
+                          product.category === 'accessories' ? 'warning' :
+                          product.category === 'bundles' ? 'default' :
+                          'default'
+                        }>
+                          {PRODUCT_CATEGORIES[product.category]?.label || product.category}
+                        </Badge>
+                        {product.subcategory && (
+                          <span className="text-xs text-gray-500">{product.subcategory}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
                       {formatCurrency(product.cogs)}

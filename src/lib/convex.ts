@@ -8,6 +8,7 @@ interface ConvexProduct {
   sku: string;
   name: string;
   category: string;
+  subcategory?: string;
   imageBase64?: string;
   imageMimeType?: string;
   cogs: number;

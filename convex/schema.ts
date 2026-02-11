@@ -74,6 +74,7 @@ export default defineSchema({
     sku: v.string(),
     name: v.string(),
     category: v.string(),
+    subcategory: v.optional(v.string()),
     imageBase64: v.optional(v.string()),
     imageMimeType: v.optional(v.string()),
     cogs: v.number(),

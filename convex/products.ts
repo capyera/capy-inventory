@@ -26,6 +26,7 @@ export const upsert = mutation({
     sku: v.string(),
     name: v.string(),
     category: v.string(),
+    subcategory: v.optional(v.string()),
     imageBase64: v.optional(v.string()),
     imageMimeType: v.optional(v.string()),
     cogs: v.number(),
@@ -51,6 +52,7 @@ export const upsert = mutation({
       await ctx.db.patch(existing._id, {
         name: args.name,
         category: args.category,
+        subcategory: args.subcategory,
         imageBase64: args.imageBase64,
         imageMimeType: args.imageMimeType,
         cogs: args.cogs,
@@ -76,6 +78,7 @@ export const bulkUpsert = mutation({
         sku: v.string(),
         name: v.string(),
         category: v.string(),
+        subcategory: v.optional(v.string()),
         imageBase64: v.optional(v.string()),
         imageMimeType: v.optional(v.string()),
         cogs: v.number(),
@@ -105,6 +108,7 @@ export const bulkUpsert = mutation({
         await ctx.db.patch(existing._id, {
           name: product.name,
           category: product.category,
+          subcategory: product.subcategory,
           imageBase64: product.imageBase64,
           imageMimeType: product.imageMimeType,
           cogs: product.cogs,

@@ -18,12 +18,42 @@ const STORAGE_KEY = 'capy-product-registry';
 const SYNC_STATUS_KEY = 'capy-product-sync-status';
 
 /**
+ * Category definitions with subcategories
+ */
+export const PRODUCT_CATEGORIES = {
+  plushies: {
+    label: 'Plushies',
+    subcategories: ['10" Plushie', 'Bag Charm', 'Jumbo'],
+  },
+  clothing: {
+    label: 'Clothing',
+    subcategories: ['Kids Hoodie', 'Adult Hoodie', 'Oversized T-shirt', 'Hat'],
+  },
+  accessories: {
+    label: 'Accessories',
+    subcategories: ['Totebag', 'Greeting Card'],
+  },
+  bundles: {
+    label: 'Bundles',
+    subcategories: ['Duo Bundle', 'Family Bundle'],
+  },
+  other: {
+    label: 'Other',
+    subcategories: [],
+  },
+} as const;
+
+export type ProductCategory = keyof typeof PRODUCT_CATEGORIES;
+export type ProductSubcategory = string;
+
+/**
  * Product master data record
  */
 export interface ProductMasterData {
   sku: string;
   name: string;
-  category: 'plushie' | 'charm' | 'jumbo' | 'clothing' | 'accessory' | 'bundle' | 'other';
+  category: ProductCategory;
+  subcategory?: ProductSubcategory;
   imageBase64?: string;
   imageMimeType?: string;
   cogs: number; // Cost of goods sold
@@ -47,6 +77,7 @@ export interface ProductCSVRow {
   sku: string;
   name: string;
   category?: string;
+  subcategory?: string;
   cogs?: string | number;
   weight?: string | number;
   length?: string | number;
@@ -167,27 +198,63 @@ function getProductsMap(): Map<string, ProductMasterData> {
 /**
  * Parse category from string
  */
-function parseCategory(cat?: string): ProductMasterData['category'] {
+function parseCategory(cat?: string): ProductCategory {
   if (!cat) return 'other';
   const lower = cat.toLowerCase();
-  if (lower.includes('charm') || lower.includes('key')) return 'charm';
-  if (lower.includes('jumbo') || lower === 'l' || lower === 'large') return 'jumbo';
-  if (lower.includes('plush') || lower === 'm' || lower === 'medium' || lower === '10') return 'plushie';
-  if (lower.includes('cloth') || lower.includes('shirt') || lower.includes('hoodie')) return 'clothing';
-  if (lower.includes('bundle')) return 'bundle';
-  if (lower.includes('access')) return 'accessory';
+  if (lower.includes('plush') || lower.includes('charm') || lower.includes('jumbo')) return 'plushies';
+  if (lower.includes('cloth') || lower.includes('shirt') || lower.includes('hoodie') || lower.includes('hat')) return 'clothing';
+  if (lower.includes('access') || lower.includes('tote') || lower.includes('card') || lower.includes('bag')) return 'accessories';
+  if (lower.includes('bundle') || lower.includes('duo') || lower.includes('family')) return 'bundles';
   return 'other';
+}
+
+/**
+ * Parse subcategory from string, inferring from category if needed
+ */
+function parseSubcategory(subcat?: string, cat?: string): string | undefined {
+  if (subcat) return subcat;
+  if (!cat) return undefined;
+  
+  const lower = cat.toLowerCase();
+  // Try to infer subcategory from category string
+  if (lower.includes('10') || lower.includes('plush')) return '10" Plushie';
+  if (lower.includes('charm') || lower.includes('key')) return 'Bag Charm';
+  if (lower.includes('jumbo')) return 'Jumbo';
+  if (lower.includes('kid')) return 'Kids Hoodie';
+  if (lower.includes('adult') && lower.includes('hoodie')) return 'Adult Hoodie';
+  if (lower.includes('oversized') || lower.includes('t-shirt') || lower.includes('tshirt')) return 'Oversized T-shirt';
+  if (lower.includes('hat') || lower.includes('cap')) return 'Hat';
+  if (lower.includes('tote')) return 'Totebag';
+  if (lower.includes('card') || lower.includes('greeting')) return 'Greeting Card';
+  if (lower.includes('duo')) return 'Duo Bundle';
+  if (lower.includes('family')) return 'Family Bundle';
+  
+  return undefined;
 }
 
 /**
  * Infer category from SKU
  */
-function inferCategoryFromSKU(sku: string): ProductMasterData['category'] {
-  if (sku.includes('KEY')) return 'charm';
-  if (sku.includes('DUO') || sku.includes('FAMILY')) return 'bundle';
-  if (sku.includes('-L-')) return 'jumbo';
-  if (sku.includes('-M-')) return 'plushie';
+function inferCategoryFromSKU(sku: string): ProductCategory {
+  if (sku.includes('KEY')) return 'plushies'; // Bag charms are under plushies
+  if (sku.includes('DUO') || sku.includes('FAM')) return 'bundles';
+  if (sku.includes('-L-')) return 'plushies'; // Jumbo is under plushies
+  if (sku.includes('-M-')) return 'plushies';
+  if (sku.includes('HOOD') || sku.includes('TEE') || sku.includes('HAT')) return 'clothing';
+  if (sku.includes('TOTE') || sku.includes('CARD')) return 'accessories';
   return 'other';
+}
+
+/**
+ * Infer subcategory from SKU
+ */
+function inferSubcategoryFromSKU(sku: string): string | undefined {
+  if (sku.includes('KEY')) return 'Bag Charm';
+  if (sku.includes('-L-')) return 'Jumbo';
+  if (sku.includes('-M-')) return '10" Plushie';
+  if (sku.includes('DUO')) return 'Duo Bundle';
+  if (sku.includes('FAM')) return 'Family Bundle';
+  return undefined;
 }
 
 /**
@@ -216,10 +283,14 @@ export const productRegistry = {
     const existing = products.get(product.sku);
     const now = new Date().toISOString();
     
+    const category = product.category || existing?.category || inferCategoryFromSKU(product.sku);
+    const subcategory = product.subcategory ?? existing?.subcategory ?? inferSubcategoryFromSKU(product.sku);
+    
     const updated: ProductMasterData = {
       sku: product.sku,
       name: product.name || existing?.name || product.sku,
-      category: product.category || existing?.category || inferCategoryFromSKU(product.sku),
+      category,
+      subcategory,
       imageBase64: product.imageBase64 ?? existing?.imageBase64,
       imageMimeType: product.imageMimeType ?? existing?.imageMimeType,
       cogs: product.cogs ?? existing?.cogs ?? 0,
@@ -292,10 +363,14 @@ export const productRegistry = {
       }
       
       try {
+        const category = parseCategory(row.category);
+        const subcategory = parseSubcategory(row.subcategory, row.category);
+        
         this.upsert({
           sku: row.sku.trim().toUpperCase(),
           name: row.name?.trim() || row.sku.trim(),
-          category: parseCategory(row.category),
+          category,
+          subcategory,
           cogs: typeof row.cogs === 'number' ? row.cogs : parseFloat(String(row.cogs || '0')) || 0,
           weight: typeof row.weight === 'number' ? row.weight : parseFloat(String(row.weight || '0')) || 0,
           dimensions: {
@@ -402,12 +477,13 @@ export const productRegistry = {
    */
   exportCSV(): string {
     const products = this.getAll();
-    const headers = ['sku', 'name', 'category', 'cogs', 'weight', 'length', 'width', 'height', 'retailPrice', 'notes'];
+    const headers = ['sku', 'name', 'category', 'subcategory', 'cogs', 'weight', 'length', 'width', 'height', 'retailPrice', 'notes'];
     
     const rows = products.map(p => [
       p.sku,
       p.name,
       p.category,
+      p.subcategory || '',
       p.cogs,
       p.weight,
       p.dimensions.length,
@@ -575,6 +651,7 @@ export function parseCSV(csvString: string): ProductCSVRow[] {
     if (h === 'sku' || h === 'product_sku' || h === 'item_sku') colMap['sku'] = i;
     else if (h === 'name' || h === 'product_name' || h === 'title') colMap['name'] = i;
     else if (h === 'category' || h === 'type' || h === 'product_type') colMap['category'] = i;
+    else if (h === 'subcategory' || h === 'sub_category' || h === 'subtype') colMap['subcategory'] = i;
     else if (h === 'cogs' || h === 'cost' || h === 'unit_cost') colMap['cogs'] = i;
     else if (h === 'weight' || h === 'weight_g' || h === 'weight_grams') colMap['weight'] = i;
     else if (h === 'length' || h === 'l' || h === 'dim_l') colMap['length'] = i;
@@ -594,6 +671,7 @@ export function parseCSV(csvString: string): ProductCSVRow[] {
       sku: values[colMap['sku'] ?? 0] || '',
       name: values[colMap['name'] ?? 1] || '',
       category: values[colMap['category']] || undefined,
+      subcategory: values[colMap['subcategory']] || undefined,
       cogs: values[colMap['cogs']] || undefined,
       weight: values[colMap['weight']] || undefined,
       length: values[colMap['length']] || undefined,
