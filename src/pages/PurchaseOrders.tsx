@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Upload, Download, Package, ChevronDown, ChevronRight, Truck } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Trash2, Upload, Download, ChevronDown, ChevronRight, Truck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -250,8 +250,8 @@ export function PurchaseOrders() {
                   const lines = poRegistry.getByPONumber(po.poNumber);
                   
                   return (
-                    <>
-                      <tr key={po.poNumber} className="hover:bg-slate-50">
+                    <React.Fragment key={po.poNumber}>
+                      <tr className="hover:bg-slate-50">
                         <td className="px-4 py-3">
                           <button 
                             onClick={() => toggleExpanded(po.poNumber)}
@@ -319,7 +319,7 @@ export function PurchaseOrders() {
                           <td></td>
                         </tr>
                       ))}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>

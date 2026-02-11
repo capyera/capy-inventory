@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Layers, Plus, AlertTriangle, Check, Edit2, Trash2, 
   ChevronDown, ChevronRight, Save, X
@@ -460,8 +460,8 @@ export function Bundles() {
                   const cogs = getBundleCogs(bundle);
                   
                   return (
-                    <>
-                      <tr key={bundle.id} className="hover:bg-slate-50">
+                    <React.Fragment key={bundle.id}>
+                      <tr className="hover:bg-slate-50">
                         <td className="px-4 py-3">
                           <button 
                             onClick={() => toggleExpanded(bundle.id)}
@@ -576,7 +576,7 @@ export function Bundles() {
                           </tr>
                         );
                       })}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
