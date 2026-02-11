@@ -7,10 +7,15 @@
  * - Weight (grams)
  * - Dimensions (L x W x H cm)
  * - Category, name, etc.
+ * 
+ * Data is stored in localStorage AND synced to Convex cloud.
  */
+
+import { convexProducts } from '../lib/convex';
 
 // Storage key for localStorage persistence
 const STORAGE_KEY = 'capy-product-registry';
+const SYNC_STATUS_KEY = 'capy-product-sync-status';
 
 /**
  * Product master data record
@@ -420,6 +425,118 @@ export const productRegistry = {
    */
   clearCache(): void {
     productsCache = null;
+  },
+
+  /**
+   * Sync all products to Convex cloud
+   */
+  async syncToCloud(): Promise<{ synced: number; error?: string }> {
+    try {
+      const products = this.getAll();
+      const result = await convexProducts.bulkUpsert(products);
+      
+      // Save sync status
+      localStorage.setItem(SYNC_STATUS_KEY, JSON.stringify({
+        lastSync: new Date().toISOString(),
+        count: result.upserted,
+        status: 'success',
+      }));
+      
+      return { synced: result.upserted };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      localStorage.setItem(SYNC_STATUS_KEY, JSON.stringify({
+        lastSync: new Date().toISOString(),
+        status: 'error',
+        error: errorMsg,
+      }));
+      return { synced: 0, error: errorMsg };
+    }
+  },
+
+  /**
+   * Load products from Convex cloud (restore)
+   */
+  async loadFromCloud(): Promise<{ loaded: number; error?: string }> {
+    try {
+      const cloudProducts = await convexProducts.list();
+      
+      if (cloudProducts.length === 0) {
+        return { loaded: 0 };
+      }
+      
+      // Clear local and load from cloud
+      const products = new Map<string, ProductMasterData>();
+      for (const cp of cloudProducts) {
+        products.set(cp.sku, {
+          sku: cp.sku,
+          name: cp.name,
+          category: cp.category as ProductMasterData['category'],
+          imageBase64: cp.imageBase64,
+          imageMimeType: cp.imageMimeType,
+          cogs: cp.cogs,
+          weight: cp.weight,
+          dimensions: cp.dimensions,
+          retailPrice: cp.retailPrice,
+          isActive: cp.isActive,
+          notes: cp.notes,
+          createdAt: cp.createdAt,
+          updatedAt: cp.updatedAt,
+        });
+      }
+      
+      saveProducts(products);
+      productsCache = products;
+      
+      return { loaded: cloudProducts.length };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      return { loaded: 0, error: errorMsg };
+    }
+  },
+
+  /**
+   * Get sync status
+   */
+  getSyncStatus(): { lastSync?: string; count?: number; status: string; error?: string } | null {
+    try {
+      const stored = localStorage.getItem(SYNC_STATUS_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Export all products as JSON (for backup)
+   */
+  exportJSON(): string {
+    const products = this.getAll();
+    return JSON.stringify(products, null, 2);
+  },
+
+  /**
+   * Import products from JSON backup
+   */
+  importJSON(jsonString: string): { imported: number; error?: string } {
+    try {
+      const products: ProductMasterData[] = JSON.parse(jsonString);
+      if (!Array.isArray(products)) {
+        return { imported: 0, error: 'Invalid JSON format - expected array' };
+      }
+      
+      let imported = 0;
+      for (const product of products) {
+        if (product.sku) {
+          this.upsert(product);
+          imported++;
+        }
+      }
+      
+      return { imported };
+    } catch (error) {
+      return { imported: 0, error: error instanceof Error ? error.message : 'Invalid JSON' };
+    }
   },
 };
 

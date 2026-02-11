@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Package, Plus, Upload, Download, Edit2, Trash2, 
-  Image as ImageIcon, X, Check, AlertCircle, FileText, ChevronDown
+  Image as ImageIcon, X, Check, AlertCircle, FileText, ChevronDown,
+  Cloud, CloudUpload, CloudDownload, RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -531,9 +532,12 @@ export function Products() {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductMasterData | null>(null);
   const [bulkImportType, setBulkImportType] = useState<'csv' | 'images' | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ lastSync?: string; status: string; error?: string } | null>(null);
 
   useEffect(() => {
     loadData();
+    setSyncStatus(productRegistry.getSyncStatus());
   }, []);
 
   function loadData() {
@@ -571,6 +575,56 @@ export function Products() {
     a.download = `products-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function handleExportJSON() {
+    const json = productRegistry.exportJSON();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `products-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleSyncToCloud() {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const result = await productRegistry.syncToCloud();
+      if (result.error) {
+        alert(`Sync failed: ${result.error}`);
+      } else {
+        alert(`✓ Synced ${result.synced} products to cloud!`);
+      }
+      setSyncStatus(productRegistry.getSyncStatus());
+    } catch (error) {
+      alert(`Sync error: ${error}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  async function handleLoadFromCloud() {
+    if (isSyncing) return;
+    if (!confirm('This will replace your local data with cloud data. Continue?')) return;
+    setIsSyncing(true);
+    try {
+      const result = await productRegistry.loadFromCloud();
+      if (result.error) {
+        alert(`Load failed: ${result.error}`);
+      } else if (result.loaded === 0) {
+        alert('No products found in cloud. Sync your data first!');
+      } else {
+        alert(`✓ Loaded ${result.loaded} products from cloud!`);
+        loadData();
+      }
+    } catch (error) {
+      alert(`Load error: ${error}`);
+    } finally {
+      setIsSyncing(false);
+    }
   }
 
   // Filter products
@@ -686,10 +740,62 @@ export function Products() {
                 </button>
               </div>
             </div>
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
+            {/* Export dropdown */}
+            <div className="relative group">
+              <Button variant="outline">
+                <Download className="w-4 h-4 mr-2" />
+                Export
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+              <div className="absolute right-0 mt-1 w-48 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                <button
+                  onClick={handleExportCSV}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  Export as CSV
+                </button>
+                <button
+                  onClick={handleExportJSON}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export as JSON (Backup)
+                </button>
+              </div>
+            </div>
+            {/* Cloud sync dropdown */}
+            <div className="relative group">
+              <Button variant="outline" className={isSyncing ? 'opacity-50' : ''}>
+                <Cloud className="w-4 h-4 mr-2" />
+                Cloud
+                {isSyncing && <RefreshCw className="w-3 h-3 ml-1 animate-spin" />}
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+              <div className="absolute right-0 mt-1 w-56 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                <button
+                  onClick={handleSyncToCloud}
+                  disabled={isSyncing}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <CloudUpload className="w-4 h-4 text-green-600" />
+                  Sync to Cloud
+                </button>
+                <button
+                  onClick={handleLoadFromCloud}
+                  disabled={isSyncing}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <CloudDownload className="w-4 h-4 text-blue-600" />
+                  Load from Cloud
+                </button>
+                {syncStatus?.lastSync && (
+                  <div className="px-4 py-2 text-xs text-gray-500 border-t">
+                    Last sync: {new Date(syncStatus.lastSync).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </div>
             <Button onClick={() => { setShowForm(true); setEditingProduct(null); }}>
               <Plus className="w-4 h-4 mr-2" />
               Add Product
