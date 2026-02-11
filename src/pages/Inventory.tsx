@@ -24,6 +24,7 @@ export function Inventory() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterSubcategory, setFilterSubcategory] = useState<string>('all');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
   useEffect(() => {
@@ -86,6 +87,11 @@ export function Inventory() {
       items = items.filter(item => item.category === filterCategory);
     }
     
+    // Subcategory filter
+    if (filterSubcategory !== 'all') {
+      items = items.filter(item => (item as any).subcategory === filterSubcategory);
+    }
+    
     // Sort
     items.sort((a, b) => {
       let aVal: string | number = a[sortField] as string | number;
@@ -104,7 +110,7 @@ export function Inventory() {
     });
     
     return items;
-  }, [inventory, searchQuery, sortField, sortDirection, filterStatus, filterCategory]);
+  }, [inventory, searchQuery, sortField, sortDirection, filterStatus, filterCategory, filterSubcategory]);
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -120,6 +126,26 @@ export function Inventory() {
     ...Object.keys(PRODUCT_CATEGORIES),
     ...inventory.map(i => i.category).filter(Boolean)
   ])];
+  
+  // Get subcategories for current category filter
+  const subcategories = useMemo(() => {
+    if (filterCategory === 'all') {
+      // Show all subcategories from all categories
+      const allSubs: string[] = [];
+      Object.values(PRODUCT_CATEGORIES).forEach(subs => allSubs.push(...subs));
+      inventory.forEach(i => {
+        if ((i as any).subcategory) allSubs.push((i as any).subcategory);
+      });
+      return [...new Set(allSubs)];
+    }
+    // Show subcategories for selected category
+    const categorySubs = PRODUCT_CATEGORIES[filterCategory as keyof typeof PRODUCT_CATEGORIES] || [];
+    const inventorySubs = inventory
+      .filter(i => i.category === filterCategory)
+      .map(i => (i as any).subcategory)
+      .filter(Boolean);
+    return [...new Set([...categorySubs, ...inventorySubs])];
+  }, [filterCategory, inventory]);
   
   const statusCounts = {
     critical: inventory.filter(i => getStockStatus(i.currentQty, i.velocity30d).status === 'critical').length,
@@ -190,8 +216,11 @@ export function Inventory() {
               
               <select
                 value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                onChange={(e) => {
+                  setFilterCategory(e.target.value);
+                  setFilterSubcategory('all'); // Reset subcategory when category changes
+                }}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
                 <option value="all">All Categories</option>
                 {categories.map(cat => (
@@ -199,10 +228,18 @@ export function Inventory() {
                 ))}
               </select>
               
-              <Button variant="outline" size="sm">
-                <Filter className="w-4 h-4 mr-2" />
-                More Filters
-              </Button>
+              {subcategories.length > 0 && (
+                <select
+                  value={filterSubcategory}
+                  onChange={(e) => setFilterSubcategory(e.target.value)}
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="all">All Subcategories</option>
+                  {subcategories.map(sub => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                </select>
+              )}
               
               <Button variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-2" />
@@ -227,8 +264,17 @@ export function Inventory() {
                       onSort={handleSort}
                     />
                   </TableHead>
+                  <TableHead>
+                    <SortableHeader 
+                      label="SKU" 
+                      field="sku" 
+                      currentField={sortField} 
+                      direction={sortDirection}
+                      onSort={handleSort}
+                    />
+                  </TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead className="text-right">
+                  <TableHead className="text-center">
                     <SortableHeader 
                       label="Current Qty" 
                       field="currentQty" 
@@ -237,8 +283,8 @@ export function Inventory() {
                       onSort={handleSort}
                     />
                   </TableHead>
-                  <TableHead className="text-right">Inbound</TableHead>
-                  <TableHead className="text-right">
+                  <TableHead className="text-center">Inbound</TableHead>
+                  <TableHead className="text-center">
                     <SortableHeader 
                       label="Velocity" 
                       field="velocity30d" 
@@ -247,7 +293,7 @@ export function Inventory() {
                       onSort={handleSort}
                     />
                   </TableHead>
-                  <TableHead className="text-right">
+                  <TableHead className="text-center">
                     <SortableHeader 
                       label="Days of Stock" 
                       field="par30d" 
@@ -256,13 +302,14 @@ export function Inventory() {
                       onSort={handleSort}
                     />
                   </TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredInventory.map((item) => {
                   const status = getStockStatus(item.currentQty, item.velocity30d);
+                  const subcategory = (item as any).subcategory;
                   return (
                     <TableRow 
                       key={item.sku}
@@ -274,29 +321,34 @@ export function Inventory() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <ProductThumbnail sku={item.sku} size="sm" />
-                          <div>
-                            <p className="font-medium text-gray-900 truncate max-w-[180px]">{item.productName}</p>
-                            <p className="font-mono text-xs text-gray-500">{item.sku}</p>
-                          </div>
+                          <p className="font-medium text-slate-900 truncate max-w-[180px]">{item.productName}</p>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge>{item.category}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatNumber(item.currentQty)}
-                      </TableCell>
-                      <TableCell className="text-right text-gray-500">
-                        {item.inboundQty > 0 ? `+${formatNumber(item.inboundQty)}` : '-'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className="font-medium text-amber-700">{item.velocity30d.toFixed(1)}</span>
-                        <span className="text-gray-400 text-xs">/day</span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {status.daysOfStock === 999 ? '∞' : status.daysOfStock}
+                        <span className="font-mono text-sm text-slate-600">{item.sku}</span>
                       </TableCell>
                       <TableCell>
+                        <div>
+                          <Badge>{item.category}</Badge>
+                          {subcategory && (
+                            <p className="text-xs text-slate-500 mt-1">{subcategory}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {formatNumber(item.currentQty)}
+                      </TableCell>
+                      <TableCell className="text-center text-slate-500">
+                        {item.inboundQty > 0 ? `+${formatNumber(item.inboundQty)}` : '-'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="font-medium text-amber-700">{item.velocity30d.toFixed(1)}</span>
+                        <span className="text-slate-400 text-xs">/day</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {status.daysOfStock === 999 ? '∞' : status.daysOfStock}
+                      </TableCell>
+                      <TableCell className="text-center">
                         <Badge 
                           variant={
                             status.status === 'critical' ? 'danger' :
