@@ -8,6 +8,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Header } from '../components/layout/Header';
 import { ProductThumbnail } from './Products';
 import { inventoryApi } from '../services/api';
+import { productRegistry, PRODUCT_CATEGORIES } from '../services/productRegistry';
 import { formatNumber, getStockStatus, cn } from '../lib/utils';
 import type { InventoryItem } from '../types';
 
@@ -33,7 +34,22 @@ export function Inventory() {
     setIsLoading(true);
     try {
       const data = await inventoryApi.getAll();
-      setInventory(data);
+      
+      // Merge with product master data from productRegistry
+      const mergedData = data.map(item => {
+        const product = productRegistry.getBySku(item.sku);
+        if (product) {
+          return {
+            ...item,
+            productName: product.name || item.productName,
+            category: product.category || item.category,
+            subcategory: product.subcategory,
+          };
+        }
+        return item;
+      });
+      
+      setInventory(mergedData);
     } catch (error) {
       console.error('Failed to load inventory:', error);
     } finally {
@@ -99,7 +115,11 @@ export function Inventory() {
     }
   }
 
-  const categories = [...new Set(inventory.map(i => i.category))];
+  // Use all known categories from product registry, plus any from inventory
+  const categories = [...new Set([
+    ...Object.keys(PRODUCT_CATEGORIES),
+    ...inventory.map(i => i.category).filter(Boolean)
+  ])];
   
   const statusCounts = {
     critical: inventory.filter(i => getStockStatus(i.currentQty, i.velocity30d).status === 'critical').length,

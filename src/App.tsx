@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
@@ -20,14 +20,41 @@ import { Settings } from './pages/Settings';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WorkspaceHeader } from './components/layout/WorkspaceHeader';
 
+// Valid tabs for URL routing
+const VALID_TABS = [
+  'dashboard', 'products', 'inventory', 'warehouses', 'bundles', 'cogs',
+  'purchase-orders', 'suppliers', 'forecasting', 'demand-planning',
+  'reorder', 'revenue-planner', 'ops-calendar', 'analytics', 'admin', 'settings', 'help'
+];
+
+function getTabFromHash(): string {
+  const hash = window.location.hash.replace('#', '');
+  return VALID_TABS.includes(hash) ? hash : 'dashboard';
+}
+
 function AuthenticatedApp() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(getTabFromHash);
   const { user } = useAuth();
+
+  // Sync tab changes to URL hash
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = tab;
+  }, []);
+
+  // Listen for browser back/forward
+  useEffect(() => {
+    const handleHashChange = () => {
+      setActiveTab(getTabFromHash());
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const renderPage = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard onNavigate={setActiveTab} />;
+        return <Dashboard onNavigate={handleTabChange} />;
       case 'products':
         return <Products />;
       case 'inventory':
@@ -55,19 +82,19 @@ function AuthenticatedApp() {
       case 'analytics':
         return <Analytics />;
       case 'admin':
-        return <Admin onBack={() => setActiveTab('dashboard')} />;
+        return <Admin onBack={() => handleTabChange('dashboard')} />;
       case 'settings':
         return <Settings />;
       case 'help':
         return <HelpPlaceholder />;
       default:
-        return <Dashboard onNavigate={setActiveTab} />;
+        return <Dashboard onNavigate={handleTabChange} />;
     }
   };
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
       <main className="flex-1 flex flex-col overflow-hidden">
         <WorkspaceHeader userName={user?.name || 'User'} />
         {renderPage()}
