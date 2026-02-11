@@ -1,75 +1,24 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
   Layers, Plus, AlertTriangle, Check, Edit2, Trash2, 
-  ChevronDown, ChevronRight, Save, X, ArrowRight, GitBranch
+  ChevronDown, ChevronRight, Save, X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Input } from '../components/ui/Input';
+import { Input, SearchInput } from '../components/ui/Input';
 import { Header } from '../components/layout/Header';
 import { ProductThumbnail } from './Products';
 import { inventoryApi } from '../services/api';
 import { bundleRegistry, getProductName, PRODUCT_NAMES } from '../services/bundleRegistry';
+import { productRegistry } from '../services/productRegistry';
 import { formatCurrency, formatNumber } from '../lib/utils';
 import type { Bundle, BundleComponent, InventoryItem } from '../types';
 
 interface BundleFormData {
   sku: string;
   name: string;
-  price: number;
   componentSkus: string[];
-}
-
-interface ComponentTreeProps {
-  components: BundleComponent[];
-  inventory: InventoryItem[];
-  limitingSku: string;
-}
-
-function ComponentTree({ components, inventory, limitingSku }: ComponentTreeProps) {
-  const getStock = (sku: string) => {
-    const item = inventory.find(i => i.sku === sku);
-    return item?.currentQty || 0;
-  };
-
-  return (
-    <div className="space-y-1">
-      {components.map((component, idx) => {
-        const stock = getStock(component.sku);
-        const isLimiting = component.sku === limitingSku;
-        const isLow = stock < 50;
-        
-        return (
-          <div 
-            key={component.sku}
-            className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
-              isLimiting && isLow ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'
-            }`}
-          >
-            <div className="flex items-center text-gray-400">
-              {idx === components.length - 1 ? '└' : '├'}
-              <ArrowRight className="w-3 h-3 ml-1" />
-            </div>
-            <ProductThumbnail sku={component.sku} size="sm" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{component.name}</p>
-              <p className="text-xs text-gray-500 font-mono">{component.sku}</p>
-            </div>
-            <div className="text-right">
-              <span className="text-sm font-medium">×{component.quantity}</span>
-              <p className={`text-xs ${isLow ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>
-                {formatNumber(stock)} in stock
-              </p>
-            </div>
-            {isLimiting && isLow && (
-              <AlertTriangle className="w-4 h-4 text-amber-500 ml-1" />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 interface BundleFormProps {
@@ -82,7 +31,6 @@ interface BundleFormProps {
 function BundleForm({ bundle, onSave, onCancel, availableSkus }: BundleFormProps) {
   const [sku, setSku] = useState(bundle?.sku || '');
   const [name, setName] = useState(bundle?.name || '');
-  const [price, setPrice] = useState(bundle?.price?.toString() || '29.99');
   const [componentSkus, setComponentSkus] = useState<string[]>(
     bundle?.components.map(c => c.sku) || []
   );
@@ -104,22 +52,16 @@ function BundleForm({ bundle, onSave, onCancel, availableSkus }: BundleFormProps
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      sku: sku.trim().toUpperCase(),
-      name: name.trim(),
-      price: parseFloat(price) || 29.99,
-      componentSkus,
-    });
+    onSave({ sku, name, componentSkus });
   };
-  
-  // Filter suggestions based on input
-  const suggestions = useMemo(() => {
-    if (!newComponentSku) return [];
-    const search = newComponentSku.toUpperCase();
-    return availableSkus
-      .filter(s => s.includes(search) && !componentSkus.includes(s))
-      .slice(0, 5);
-  }, [newComponentSku, availableSkus, componentSkus]);
+
+  // Calculate COGS from components
+  const calculatedCogs = useMemo(() => {
+    return componentSkus.reduce((sum, compSku) => {
+      const product = productRegistry.getBySku(compSku);
+      return sum + (product?.cogs || 0);
+    }, 0);
+  }, [componentSkus]);
   
   return (
     <Card className="border-2 border-amber-300 bg-amber-50/30">
@@ -133,125 +75,98 @@ function BundleForm({ bundle, onSave, onCancel, availableSkus }: BundleFormProps
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bundle SKU
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Bundle SKU</label>
               <Input
                 value={sku}
-                onChange={(e) => setSku(e.target.value)}
-                placeholder="LE-DUO-001"
+                onChange={(e) => setSku(e.target.value.toUpperCase())}
+                placeholder="CUSTOM-BUNDLE-001"
                 disabled={isEditing}
                 className="font-mono"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bundle Name
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Bundle Name</label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Valentine Duo Bundle"
+                placeholder="My Custom Bundle"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Price ($)
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="29.99"
-              />
-            </div>
-          </div>
-          
-          {/* Component SKUs */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Component SKUs
-            </label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {componentSkus.map((cSku) => (
-                <div 
-                  key={cSku}
-                  className="flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-sm"
-                >
-                  <span className="font-mono">{cSku}</span>
-                  <span className="text-gray-400 text-xs">
-                    ({getProductName(cSku) === cSku ? 'Unknown' : getProductName(cSku).split(' ')[0]})
-                  </span>
-                  <button 
-                    type="button"
-                    onClick={() => handleRemoveComponent(cSku)}
-                    className="ml-1 text-gray-400 hover:text-red-500"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2 relative">
-              <Input
-                value={newComponentSku}
-                onChange={(e) => setNewComponentSku(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddComponent())}
-                placeholder="Add component SKU (e.g., OG-M-009)"
-                className="font-mono flex-1"
-              />
-              <Button type="button" variant="outline" onClick={handleAddComponent}>
-                <Plus className="w-4 h-4" />
-              </Button>
-              {suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-12 mt-1 bg-white border rounded-md shadow-lg z-10">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => {
-                        setComponentSkus([...componentSkus, s]);
-                        setNewComponentSku('');
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm font-mono flex justify-between"
-                    >
-                      <span>{s}</span>
-                      <span className="text-gray-400">{getProductName(s)}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* Preview */}
-          {componentSkus.length > 0 && (
-            <div className="p-3 bg-white rounded-md border">
-              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Preview</p>
-              <div className="flex items-center gap-2 text-sm">
-                <GitBranch className="w-4 h-4 text-amber-500" />
-                <span className="font-medium">{name || 'Unnamed Bundle'}</span>
-                <span className="text-gray-400">=</span>
-                {componentSkus.map((s, i) => (
-                  <span key={s}>
-                    <span className="font-mono text-gray-600">{s}</span>
-                    {i < componentSkus.length - 1 && <span className="text-gray-400"> + </span>}
-                  </span>
-                ))}
+              <label className="block text-sm font-medium text-slate-700 mb-1">Calculated COGS</label>
+              <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-medium text-slate-700">
+                {formatCurrency(calculatedCogs)}
               </div>
             </div>
-          )}
+          </div>
+          
+          {/* Components */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Components ({componentSkus.length})
+            </label>
+            
+            {/* Add Component */}
+            <div className="flex gap-2 mb-3">
+              <div className="flex-1">
+                <Input
+                  value={newComponentSku}
+                  onChange={(e) => setNewComponentSku(e.target.value.toUpperCase())}
+                  placeholder="Enter SKU to add..."
+                  list="available-skus"
+                  className="font-mono"
+                />
+                <datalist id="available-skus">
+                  {availableSkus.map(s => (
+                    <option key={s} value={s}>{getProductName(s)}</option>
+                  ))}
+                </datalist>
+              </div>
+              <Button type="button" variant="outline" onClick={handleAddComponent}>
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </div>
+            
+            {/* Component List */}
+            {componentSkus.length > 0 ? (
+              <div className="space-y-2 p-3 bg-slate-50 rounded-lg border">
+                {componentSkus.map((compSku) => {
+                  const product = productRegistry.getBySku(compSku);
+                  return (
+                    <div key={compSku} className="flex items-center gap-3 p-2 bg-white rounded-lg border">
+                      <ProductThumbnail sku={compSku} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{getProductName(compSku)}</p>
+                        <p className="text-xs text-slate-500 font-mono">{compSku}</p>
+                      </div>
+                      <span className="text-sm text-slate-600">
+                        COGS: {formatCurrency(product?.cogs || 0)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveComponent(compSku)}
+                        className="p-1 hover:bg-red-50 rounded text-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic p-4 bg-slate-50 rounded-lg border border-dashed text-center">
+                No components added yet. Add component SKUs above.
+              </p>
+            )}
+          </div>
           
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-4 border-t">
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              disabled={!sku || !name || componentSkus.length === 0}
-            >
+            <Button type="submit" disabled={!sku || !name || componentSkus.length === 0}>
               <Save className="w-4 h-4 mr-2" />
               {isEditing ? 'Update Bundle' : 'Create Bundle'}
             </Button>
@@ -270,6 +185,7 @@ export function Bundles() {
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
   const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<'all' | 'duo' | 'family' | 'custom'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadData();
@@ -282,7 +198,6 @@ export function Bundles() {
         inventoryApi.getAll(),
       ]);
       
-      // Get bundles from registry
       const bundlesData = bundleRegistry.getAll();
       setBundles(bundlesData);
       setInventory(inventoryData);
@@ -314,6 +229,13 @@ export function Bundles() {
     return { available: minAvailable === Infinity ? 0 : minAvailable, limiting: limitingSku };
   }
 
+  function getBundleCogs(bundle: Bundle): number {
+    return bundle.components.reduce((sum, comp) => {
+      const product = productRegistry.getBySku(comp.sku);
+      return sum + (product?.cogs || 0) * comp.quantity;
+    }, 0);
+  }
+
   function handleSaveBundle(data: BundleFormData) {
     const components: BundleComponent[] = data.componentSkus.map(sku => ({
       sku,
@@ -324,20 +246,18 @@ export function Bundles() {
     if (editingBundle) {
       bundleRegistry.update(editingBundle.sku, {
         name: data.name,
-        price: data.price,
         components,
       });
     } else {
       bundleRegistry.create({
         sku: data.sku,
         name: data.name,
-        price: data.price,
+        price: 0, // Price syncs from Shopify
         components,
         isActive: true,
       });
     }
     
-    // Reload bundles
     setBundles(bundleRegistry.getAll());
     setShowForm(false);
     setEditingBundle(null);
@@ -367,23 +287,29 @@ export function Bundles() {
     });
   }
 
-  // Get available SKUs for autocomplete
   const availableSkus = useMemo(() => {
     return Object.keys(PRODUCT_NAMES);
   }, []);
 
-  // Filter bundles
   const filteredBundles = useMemo(() => {
     return bundles.filter(b => {
-      if (filter === 'all') return true;
-      if (filter === 'duo') return b.sku.includes('DUO');
-      if (filter === 'family') return b.sku.includes('FAMILY');
-      if (filter === 'custom') return bundleRegistry.isCustomBundle(b.sku);
+      // Filter by type
+      if (filter === 'duo' && !b.sku.includes('DUO')) return false;
+      if (filter === 'family' && !b.sku.includes('FAMILY')) return false;
+      if (filter === 'custom' && !bundleRegistry.isCustomBundle(b.sku)) return false;
+      
+      // Filter by search
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!b.sku.toLowerCase().includes(q) && !b.name.toLowerCase().includes(q)) {
+          return false;
+        }
+      }
+      
       return true;
     });
-  }, [bundles, filter]);
+  }, [bundles, filter, searchQuery]);
 
-  // Stats
   const stats = useMemo(() => {
     const total = bundles.length;
     const duoCount = bundles.filter(b => b.sku.includes('DUO')).length;
@@ -422,19 +348,19 @@ export function Bundles() {
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-gray-500 font-medium uppercase">Duo Bundles</p>
+              <p className="text-xs text-slate-500 font-medium uppercase">Duo Bundles</p>
               <p className="text-2xl font-bold">{stats.duoCount}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-gray-500 font-medium uppercase">Family Bundles</p>
+              <p className="text-xs text-slate-500 font-medium uppercase">Family Bundles</p>
               <p className="text-2xl font-bold">{stats.familyCount}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-gray-500 font-medium uppercase">Custom</p>
+              <p className="text-xs text-slate-500 font-medium uppercase">Custom</p>
               <p className="text-2xl font-bold">{stats.customCount}</p>
             </CardContent>
           </Card>
@@ -453,7 +379,14 @@ export function Bundles() {
         </div>
 
         {/* Actions Bar */}
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex-1 min-w-[200px]">
+            <SearchInput 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search bundles..."
+            />
+          </div>
           <div className="flex gap-2">
             <Button
               variant={filter === 'all' ? 'default' : 'outline'}
@@ -502,136 +435,160 @@ export function Bundles() {
           </div>
         )}
         
-        {/* Bundle Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredBundles.map((bundle) => {
-            const { available, limiting } = getBundleAvailability(bundle);
-            const isLow = available < 50;
-            const isOut = available === 0;
-            const isExpanded = expandedBundles.has(bundle.id);
-            const isCustom = bundleRegistry.isCustomBundle(bundle.sku);
-            
-            return (
-              <Card key={bundle.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row items-start justify-between pb-2">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <button 
-                      onClick={() => toggleExpanded(bundle.id)}
-                      className="mt-1 p-1 hover:bg-gray-100 rounded"
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4 text-gray-400" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
-                      )}
-                    </button>
-                    <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                      <Layers className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <CardTitle className="text-base truncate">{bundle.name}</CardTitle>
-                      <p className="text-xs text-gray-500 font-mono">{bundle.sku}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isCustom && (
-                      <Badge variant="outline" className="text-xs">Custom</Badge>
-                    )}
-                    <Badge variant={bundle.isActive ? 'success' : 'default'}>
-                      {bundle.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Component Summary or Tree */}
-                  {isExpanded ? (
-                    <div className="mb-4">
-                      <p className="text-xs font-medium text-gray-500 uppercase mb-2">
-                        Components ({bundle.components.length})
-                      </p>
-                      <ComponentTree 
-                        components={bundle.components} 
-                        inventory={inventory}
-                        limitingSku={limiting}
-                      />
-                    </div>
-                  ) : (
-                    <div className="mb-4">
-                      <p className="text-xs text-gray-500">
-                        <span className="font-medium">{bundle.components.length}</span> components: {' '}
-                        {bundle.components.map(c => c.sku).join(' + ')}
-                      </p>
-                    </div>
-                  )}
+        {/* Bundle Table */}
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700 w-8"></th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Bundle</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Components</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">COGS</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">Availability</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">Status</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredBundles.map((bundle) => {
+                  const { available, limiting } = getBundleAvailability(bundle);
+                  const isLow = available < 50 && available > 0;
+                  const isOut = available === 0;
+                  const isExpanded = expandedBundles.has(bundle.id);
+                  const isCustom = bundleRegistry.isCustomBundle(bundle.sku);
+                  const cogs = getBundleCogs(bundle);
                   
-                  {/* Availability */}
-                  <div className={`p-3 rounded-lg ${
-                    isOut ? 'bg-red-50' : isLow ? 'bg-yellow-50' : 'bg-green-50'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {isOut ? (
-                          <AlertTriangle className="w-4 h-4 text-red-500" />
-                        ) : isLow ? (
-                          <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                        ) : (
-                          <Check className="w-4 h-4 text-green-500" />
-                        )}
-                        <span className={`text-sm font-medium ${
-                          isOut ? 'text-red-700' : isLow ? 'text-yellow-700' : 'text-green-700'
-                        }`}>
-                          {isOut ? 'Cannot Fulfill' : isLow ? 'Low Availability' : 'In Stock'}
-                        </span>
-                      </div>
-                      <span className={`text-lg font-bold ${
-                        isOut ? 'text-red-700' : isLow ? 'text-yellow-700' : 'text-green-700'
-                      }`}>
-                        {formatNumber(available)}
-                      </span>
-                    </div>
-                    {limiting && available < 100 && (
-                      <p className="text-xs text-gray-600 mt-1">
-                        Limited by: <span className="font-mono">{limiting}</span>
-                      </p>
-                    )}
-                  </div>
-                  
-                  {/* Price & Actions */}
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                    <span className="text-lg font-bold text-gray-900">
-                      {formatCurrency(bundle.price)}
-                    </span>
-                    <div className="flex gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => { setEditingBundle(bundle); setShowForm(false); }}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      {isCustom && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDeleteBundle(bundle.sku)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  return (
+                    <>
+                      <tr key={bundle.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <button 
+                            onClick={() => toggleExpanded(bundle.id)}
+                            className="p-1 hover:bg-slate-100 rounded"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-slate-400" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-slate-400" />
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                              <Layers className="w-4 h-4 text-amber-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">{bundle.name}</p>
+                              <p className="text-xs text-slate-500 font-mono">{bundle.sku}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-slate-600">
+                            {bundle.components.length} items: {bundle.components.map(c => c.sku).join(' + ')}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium">
+                          {formatCurrency(cogs)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`font-semibold ${
+                            isOut ? 'text-red-600' : isLow ? 'text-yellow-600' : 'text-green-600'
+                          }`}>
+                            {formatNumber(available)}
+                          </span>
+                          {limiting && available < 100 && (
+                            <p className="text-xs text-slate-500">
+                              Limited: {limiting}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge variant={isOut ? 'danger' : isLow ? 'warning' : 'success'}>
+                            {isOut ? 'Out of Stock' : isLow ? 'Low Stock' : 'In Stock'}
+                          </Badge>
+                          {isCustom && (
+                            <Badge variant="outline" className="ml-1">Custom</Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => { setEditingBundle(bundle); setShowForm(false); }}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            {isCustom && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleDeleteBundle(bundle.sku)}
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Expanded component rows */}
+                      {isExpanded && bundle.components.map((component, idx) => {
+                        const stock = getComponentStock(component.sku);
+                        const isLimitingComponent = component.sku === limiting;
+                        const product = productRegistry.getBySku(component.sku);
+                        
+                        return (
+                          <tr key={`${bundle.id}-${component.sku}`} className="bg-slate-50/50">
+                            <td className="px-4 py-2"></td>
+                            <td className="px-4 py-2 pl-12">
+                              <div className="flex items-center gap-3">
+                                <span className="text-slate-400 text-xs">
+                                  {idx === bundle.components.length - 1 ? '└' : '├'}
+                                </span>
+                                <ProductThumbnail sku={component.sku} size="sm" />
+                                <div>
+                                  <p className="text-sm text-slate-700">{component.name}</p>
+                                  <p className="text-xs text-slate-500 font-mono">{component.sku}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 text-slate-500 text-sm">
+                              ×{component.quantity} per bundle
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm text-slate-600">
+                              {formatCurrency(product?.cogs || 0)}
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              <span className={`text-sm ${isLimitingComponent && stock < 50 ? 'text-amber-600 font-medium' : 'text-slate-600'}`}>
+                                {formatNumber(stock)} in stock
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              {isLimitingComponent && stock < 50 && (
+                                <Badge variant="warning">Limiting</Badge>
+                              )}
+                            </td>
+                            <td></td>
+                          </tr>
+                        );
+                      })}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
         
         {filteredBundles.length === 0 && !isLoading && (
-          <Card className="text-center py-12">
+          <Card className="text-center py-12 mt-4">
             <CardContent>
-              <Layers className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No bundles found</p>
+              <Layers className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500">No bundles found</p>
               {filter !== 'all' && (
                 <Button variant="link" onClick={() => setFilter('all')}>
                   Show all bundles
@@ -640,61 +597,6 @@ export function Bundles() {
             </CardContent>
           </Card>
         )}
-        
-        {/* How Bundles Work */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>How Bundle Auto-Breakdown Works</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm flex-shrink-0">
-                  1
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">Customer Orders Bundle</h4>
-                  <p className="text-sm text-gray-500 mt-1">
-                    When a bundle is sold on Shopify, we receive the order with the bundle SKU.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm flex-shrink-0">
-                  2
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">Bundle → Components</h4>
-                  <p className="text-sm text-gray-500 mt-1">
-                    System explodes bundle SKU into component SKUs using the registry mappings.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm flex-shrink-0">
-                  3
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">Component Deduction</h4>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Each component's inventory is deducted based on the bundle mapping.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm flex-shrink-0">
-                  4
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">Velocity at Component Level</h4>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Velocity calculations aggregate both direct and bundle sales for accurate demand.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
