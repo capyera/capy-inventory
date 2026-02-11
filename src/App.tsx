@@ -7,6 +7,7 @@ import { Bundles } from './pages/Bundles';
 import { Products } from './pages/Products';
 import { COGS } from './pages/COGS';
 import { PurchaseOrders } from './pages/PurchaseOrders';
+import { Inbounds } from './pages/Inbounds';
 import { Suppliers } from './pages/Suppliers';
 import { Forecasting } from './pages/Forecasting';
 import { DemandPlanning } from './pages/DemandPlanning';
@@ -23,7 +24,7 @@ import { WorkspaceHeader } from './components/layout/WorkspaceHeader';
 // Valid tabs for URL routing
 const VALID_TABS = [
   'dashboard', 'products', 'inventory', 'warehouses', 'bundles', 'cogs',
-  'purchase-orders', 'suppliers', 'forecasting', 'demand-planning',
+  'purchase-orders', 'inbounds', 'suppliers', 'forecasting', 'demand-planning',
   'reorder', 'revenue-planner', 'ops-calendar', 'analytics', 'admin', 'settings', 'help'
 ];
 
@@ -67,6 +68,8 @@ function AuthenticatedApp() {
         return <COGS />;
       case 'purchase-orders':
         return <PurchaseOrders />;
+      case 'inbounds':
+        return <Inbounds />;
       case 'suppliers':
         return <Suppliers />;
       case 'forecasting':

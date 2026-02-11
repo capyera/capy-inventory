@@ -16,7 +16,8 @@ import {
   Calendar,
   Database,
   LogOut,
-  Shield
+  Shield,
+  Truck
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -36,6 +37,7 @@ const menuItems = [
   { id: 'bundles', label: 'Bundles', icon: Layers },
   { id: 'cogs', label: 'COGS & Margins', icon: DollarSign },
   { id: 'purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
+  { id: 'inbounds', label: 'Inbounds', icon: Truck },
   { id: 'suppliers', label: 'Suppliers', icon: Users },
   { id: 'forecasting', label: 'Forecasting', icon: TrendingUp },
   { id: 'demand-planning', label: 'Demand Planning', icon: Brain },
