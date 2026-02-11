@@ -1,24 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trash2, Upload, Download, ChevronDown, ChevronRight, Truck } from 'lucide-react';
+import { Plus, Trash2, Upload, Download, ChevronDown, ChevronRight, Truck, AlertTriangle, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { SearchInput } from '../components/ui/Input';
+import { Input, SearchInput } from '../components/ui/Input';
 import { Header } from '../components/layout/Header';
-import { poRegistry, POLineData } from '../services/poRegistry';
+import { poRegistry } from '../services/poRegistry';
+import { supplierRegistry } from '../services/supplierRegistry';
+import { productRegistry } from '../services/productRegistry';
 import { formatNumber } from '../lib/utils';
 
 // Mars Sheet PO data for import
-const MARS_POS: Array<{
-  poNumber: string;
-  supplierCode: string;
-  supplierName: string;
-  sku: string;
-  qtyOrdered: number;
-  qtyReceived: number;
-  qtyRemaining: number;
-  status: string;
-}> = [
+const MARS_POS = [
   { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-001', qtyOrdered: 1443, qtyReceived: 0, qtyRemaining: 1443, status: 'Pending' },
   { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-008', qtyOrdered: 1200, qtyReceived: 0, qtyRemaining: 1200, status: 'Pending' },
   { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-010', qtyOrdered: 1023, qtyReceived: 0, qtyRemaining: 1023, status: 'Pending' },
@@ -60,12 +53,220 @@ const MARS_POS: Array<{
   { poNumber: 'A026-01', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-001', qtyOrdered: 3000, qtyReceived: 0, qtyRemaining: 3000, status: 'Pending' },
 ];
 
+// Delete Confirmation Modal
+interface DeleteConfirmModalProps {
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function DeleteConfirmModal({ title, message, onConfirm, onCancel }: DeleteConfirmModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-red-600">
+            <AlertTriangle className="w-5 h-5" />
+            {title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-slate-600 mb-6">{message}</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onCancel}>Cancel</Button>
+            <Button onClick={onConfirm} className="bg-red-600 hover:bg-red-700 text-white">
+              Delete
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Generate next PO number
+function generatePONumber(): string {
+  const now = new Date();
+  const year = now.getFullYear().toString().slice(-2);
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  return `PO${year}${month}-${random}`;
+}
+
+// Create PO Form
+interface POFormProps {
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+function POForm({ onSave, onCancel }: POFormProps) {
+  const [poNumber, setPONumber] = useState(generatePONumber());
+  const [selectedSupplier, setSelectedSupplier] = useState('');
+  const [skuQuantities, setSkuQuantities] = useState<Record<string, number>>({});
+  const [expectedDate, setExpectedDate] = useState('');
+  
+  const suppliers = supplierRegistry.getAll();
+  const allProducts = productRegistry.getAll();
+  
+  // Get SKUs for selected supplier
+  const supplierSkus = useMemo(() => {
+    if (!selectedSupplier) return [];
+    const supplier = suppliers.find(s => s.code === selectedSupplier);
+    if (!supplier?.skus?.length) {
+      // If no SKUs assigned, show all products
+      return allProducts.map(p => ({ sku: p.sku, name: p.name }));
+    }
+    return supplier.skus.map(sku => {
+      const product = allProducts.find(p => p.sku === sku);
+      return { sku, name: product?.name || sku };
+    });
+  }, [selectedSupplier, suppliers, allProducts]);
+
+  const selectedSupplierData = suppliers.find(s => s.code === selectedSupplier);
+  
+  const totalUnits = Object.values(skuQuantities).reduce((sum, qty) => sum + (qty || 0), 0);
+  const skusWithQty = Object.entries(skuQuantities).filter(([_, qty]) => qty > 0).length;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSupplier || skusWithQty === 0) return;
+    
+    // Create PO lines
+    Object.entries(skuQuantities).forEach(([sku, qty]) => {
+      if (qty > 0) {
+        poRegistry.create({
+          poNumber,
+          supplierCode: selectedSupplierData?.code || '',
+          supplierName: selectedSupplierData?.name || '',
+          sku,
+          qtyOrdered: qty,
+          qtyReceived: 0,
+          qtyRemaining: qty,
+          status: 'Pending',
+          expectedDate: expectedDate || undefined,
+        });
+      }
+    });
+    
+    onSave();
+  };
+
+  const handleQtyChange = (sku: string, value: string) => {
+    const qty = parseInt(value) || 0;
+    setSkuQuantities(prev => ({ ...prev, [sku]: qty }));
+  };
+
+  return (
+    <Card className="border-2 border-amber-300 bg-amber-50/30 mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Plus className="w-5 h-5 text-amber-600" />
+          Create New Purchase Order
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">PO Number</label>
+              <Input
+                value={poNumber}
+                onChange={(e) => setPONumber(e.target.value.toUpperCase())}
+                placeholder="PO2602-01"
+                className="font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Supplier *</label>
+              <select
+                value={selectedSupplier}
+                onChange={(e) => {
+                  setSelectedSupplier(e.target.value);
+                  setSkuQuantities({});
+                }}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                required
+              >
+                <option value="">Select supplier...</option>
+                {suppliers.map(s => (
+                  <option key={s.code} value={s.code}>{s.name} ({s.code})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Expected Date</label>
+              <Input
+                type="date"
+                value={expectedDate}
+                onChange={(e) => setExpectedDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* SKU Selection */}
+          {selectedSupplier && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Order Quantities ({skusWithQty} SKUs, {formatNumber(totalUnits)} units)
+              </label>
+              <div className="border border-slate-200 rounded-lg bg-white max-h-64 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-slate-700">SKU</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-700">Product</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-700 w-32">Quantity</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {supplierSkus.map(({ sku, name }) => (
+                      <tr key={sku} className="hover:bg-slate-50">
+                        <td className="px-3 py-2 font-mono text-slate-600">{sku}</td>
+                        <td className="px-3 py-2 text-slate-700">{name}</td>
+                        <td className="px-3 py-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            value={skuQuantities[sku] || ''}
+                            onChange={(e) => handleQtyChange(sku, e.target.value)}
+                            placeholder="0"
+                            className="w-28 text-right"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {supplierSkus.length === 0 && (
+                <p className="text-sm text-slate-500 p-4 text-center">
+                  No SKUs assigned to this supplier. Assign SKUs in the Suppliers page.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+            <Button type="submit" disabled={!selectedSupplier || skusWithQty === 0}>
+              Create PO ({skusWithQty} SKUs)
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PurchaseOrders() {
-  const [poLines, setPOLines] = useState<POLineData[]>([]);
+  const [poLines, setPOLines] = useState<ReturnType<typeof poRegistry.getAll>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedPOs, setExpandedPOs] = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showForm, setShowForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'po' | 'all'; poNumber?: string } | null>(null);
 
   useEffect(() => {
     loadPOs();
@@ -85,17 +286,15 @@ export function PurchaseOrders() {
   }
 
   function handleDeleteAll() {
-    if (confirm('Delete ALL purchase orders? This cannot be undone.')) {
-      poRegistry.deleteAll();
-      loadPOs();
-    }
+    poRegistry.deleteAll();
+    loadPOs();
+    setDeleteConfirm(null);
   }
 
   function handleDeletePO(poNumber: string) {
-    if (confirm(`Delete PO ${poNumber} and all its lines?`)) {
-      poRegistry.deletePO(poNumber);
-      loadPOs();
-    }
+    poRegistry.deletePO(poNumber);
+    loadPOs();
+    setDeleteConfirm(null);
   }
 
   function handleExport() {
@@ -120,7 +319,6 @@ export function PurchaseOrders() {
   // Get PO summary
   const poSummary = useMemo(() => {
     const summary = poRegistry.getPOSummary();
-    // Filter
     return summary.filter(po => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -158,6 +356,19 @@ export function PurchaseOrders() {
       />
       
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <DeleteConfirmModal
+            title={deleteConfirm.type === 'all' ? 'Delete All Purchase Orders?' : `Delete PO ${deleteConfirm.poNumber}?`}
+            message={deleteConfirm.type === 'all' 
+              ? 'This will permanently delete all purchase orders and their line items. This action cannot be undone.'
+              : `This will permanently delete PO ${deleteConfirm.poNumber} and all its line items. This action cannot be undone.`
+            }
+            onConfirm={() => deleteConfirm.type === 'all' ? handleDeleteAll() : handleDeletePO(deleteConfirm.poNumber!)}
+            onCancel={() => setDeleteConfirm(null)}
+          />
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <Card className="bg-amber-50">
@@ -220,12 +431,28 @@ export function PurchaseOrders() {
             Export
           </Button>
           {poLines.length > 0 && (
-            <Button variant="outline" onClick={handleDeleteAll} className="text-red-600 hover:bg-red-50">
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteConfirm({ type: 'all' })} 
+              className="text-red-600 hover:bg-red-50"
+            >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete All
             </Button>
           )}
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create PO
+          </Button>
         </div>
+
+        {/* Create PO Form */}
+        {showForm && (
+          <POForm
+            onSave={() => { loadPOs(); setShowForm(false); }}
+            onCancel={() => setShowForm(false)}
+          />
+        )}
 
         {/* PO Table */}
         <Card>
@@ -288,7 +515,7 @@ export function PurchaseOrders() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeletePO(po.poNumber)}
+                            onClick={() => setDeleteConfirm({ type: 'po', poNumber: po.poNumber })}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -327,15 +554,21 @@ export function PurchaseOrders() {
           </div>
         </Card>
 
-        {poSummary.length === 0 && !isLoading && (
+        {poSummary.length === 0 && !isLoading && !showForm && (
           <Card className="text-center py-12 mt-4">
             <CardContent>
               <Truck className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <p className="text-slate-500 mb-4">No purchase orders found</p>
-              <Button onClick={handleImportMars}>
-                <Upload className="w-4 h-4 mr-2" />
-                Import from Mars Sheet
-              </Button>
+              <div className="flex justify-center gap-2">
+                <Button onClick={handleImportMars} variant="outline">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import from Mars
+                </Button>
+                <Button onClick={() => setShowForm(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create PO
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
