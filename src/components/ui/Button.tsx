@@ -17,22 +17,22 @@ export function Button({
   disabled,
   ...props 
 }: ButtonProps) {
-  const baseStyles = "inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0f1419] disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles = "inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
-    primary: "bg-amber-500 text-[#0f1419] hover:bg-amber-400 focus:ring-amber-500 glow-sm",
-    secondary: "bg-[#242b3d] text-[#e7e9ea] hover:bg-[#2f3847] focus:ring-[#3b4a5e]",
-    outline: "border border-[#3b4a5e] bg-transparent text-[#e7e9ea] hover:bg-[#242b3d] hover:border-[#8b98a5] focus:ring-[#3b4a5e]",
-    ghost: "text-[#e7e9ea] hover:bg-[#242b3d] focus:ring-[#3b4a5e]",
-    danger: "bg-red-500 text-white hover:bg-red-400 focus:ring-red-500",
-    link: "text-amber-400 hover:text-amber-300 underline-offset-4 hover:underline focus:ring-amber-500",
-    default: "bg-amber-500 text-[#0f1419] hover:bg-amber-400 focus:ring-amber-500",
+    primary: "bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500 shadow-sm",
+    secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-500",
+    outline: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400 focus:ring-slate-500",
+    ghost: "text-slate-700 hover:bg-slate-100 focus:ring-slate-500",
+    danger: "bg-red-500 text-white hover:bg-red-600 focus:ring-red-500 shadow-sm",
+    link: "text-amber-600 hover:text-amber-700 underline-offset-4 hover:underline focus:ring-amber-500",
+    default: "bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500 shadow-sm",
   };
   
   const sizes = {
     sm: "px-3 py-1.5 text-sm",
     md: "px-4 py-2 text-sm",
-    lg: "px-6 py-3 text-base",
+    lg: "px-5 py-2.5 text-base",
   };
   
   return (
