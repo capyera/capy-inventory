@@ -293,15 +293,96 @@ export const dashboardApi = {
   },
 };
 
-// Bundles API
+// Bundles API - now uses bundleRegistry
+import { bundleRegistry } from './bundleRegistry';
+import { orderProcessor, type ProcessedLineItem, type SKUSalesData } from './orderProcessor';
+
 export const bundlesApi = {
   async getAll(): Promise<Bundle[]> {
-    return getMockBundles();
+    return bundleRegistry.getAll();
   },
   
   async getById(id: string): Promise<Bundle | null> {
-    const bundles = await this.getAll();
-    return bundles.find(b => b.id === id) || null;
+    return bundleRegistry.getById(id);
+  },
+  
+  async getBySku(sku: string): Promise<Bundle | null> {
+    return bundleRegistry.getBySku(sku);
+  },
+  
+  async create(bundle: Omit<Bundle, 'id'>): Promise<Bundle> {
+    return bundleRegistry.create(bundle);
+  },
+  
+  async update(bundleSku: string, updates: Partial<Bundle>): Promise<Bundle | null> {
+    return bundleRegistry.update(bundleSku, updates);
+  },
+  
+  async delete(bundleSku: string): Promise<boolean> {
+    return bundleRegistry.delete(bundleSku);
+  },
+};
+
+// Order Processing API - for bundle breakdown
+export const orderProcessingApi = {
+  /**
+   * Process orders with bundle explosion
+   */
+  async processOrders(orders: { line_items: Array<{ sku: string; quantity: number; price: string; title: string }> }[]): Promise<ProcessedLineItem[]> {
+    // Convert to ShopifyOrder format
+    const shopifyOrders = orders.map((o, i) => ({
+      id: i,
+      order_number: i,
+      name: `#${i}`,
+      email: '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      closed_at: null,
+      cancelled_at: null,
+      financial_status: 'paid' as const,
+      fulfillment_status: null,
+      total_price: '0',
+      subtotal_price: '0',
+      total_tax: '0',
+      total_discounts: '0',
+      total_shipping_price_set: { shop_money: { amount: '0' } },
+      currency: 'USD',
+      customer: null,
+      line_items: o.line_items.map((item, j) => ({
+        id: j,
+        variant_id: 0,
+        product_id: 0,
+        title: item.title,
+        variant_title: '',
+        sku: item.sku,
+        quantity: item.quantity,
+        price: item.price,
+        total_discount: '0',
+        fulfillment_status: null,
+      })),
+      shipping_address: null,
+      tags: '',
+    }));
+    
+    return orderProcessor.processOrders(shopifyOrders);
+  },
+  
+  /**
+   * Get component-level velocity from Shopify orders
+   */
+  async getComponentVelocity(days: number = 30): Promise<Map<string, SKUSalesData>> {
+    if (!USE_SHOPIFY) {
+      return new Map();
+    }
+    
+    try {
+      const orders = await shopifyApi.getRecentOrders(days);
+      const processedItems = orderProcessor.processOrders(orders);
+      return orderProcessor.aggregateSalesBySKU(processedItems);
+    } catch (error) {
+      console.error('Failed to calculate component velocity:', error);
+      return new Map();
+    }
   },
 };
 
@@ -414,44 +495,7 @@ function getMockInventory(): InventoryItem[] {
   }));
 }
 
-function getMockBundles(): Bundle[] {
-  return [
-    {
-      id: 'bundle-1',
-      sku: 'OG-DUO-009',
-      name: 'Cherry Duo Bundle',
-      price: 27.99,
-      isActive: true,
-      components: [
-        { sku: 'OG-M-009', name: 'Cherry Capybara 10"', quantity: 1 },
-        { sku: 'OG-KEY-009', name: 'Cherry Bag Charm', quantity: 1 },
-      ],
-    },
-    {
-      id: 'bundle-2',
-      sku: 'OG-DUO-007',
-      name: 'Matcha Duo Bundle',
-      price: 27.99,
-      isActive: true,
-      components: [
-        { sku: 'OG-M-007', name: 'Matcha Capybara 10"', quantity: 1 },
-        { sku: 'OG-KEY-007', name: 'Matcha Bag Charm', quantity: 1 },
-      ],
-    },
-    {
-      id: 'bundle-3',
-      sku: 'OG-FAMILY-009',
-      name: 'Cherry Family Bundle',
-      price: 45.99,
-      isActive: true,
-      components: [
-        { sku: 'OG-L-009', name: 'Cherry Capybara Jumbo', quantity: 1 },
-        { sku: 'OG-M-009', name: 'Cherry Capybara 10"', quantity: 1 },
-        { sku: 'OG-KEY-009', name: 'Cherry Bag Charm', quantity: 1 },
-      ],
-    },
-  ];
-}
+// getMockBundles removed - now using bundleRegistry
 
 function getMockSuppliers(): Supplier[] {
   return [
