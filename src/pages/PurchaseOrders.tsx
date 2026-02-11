@@ -1,265 +1,345 @@
-import { useState, useEffect } from 'react';
-import { Plus, Truck, CheckCircle, Clock, Package } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Trash2, Upload, Download, Package, ChevronDown, ChevronRight, Truck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
+import { SearchInput } from '../components/ui/Input';
 import { Header } from '../components/layout/Header';
-import { purchaseOrdersApi } from '../services/api';
-import { formatCurrency, formatNumber } from '../lib/utils';
-import type { PurchaseOrder } from '../types';
+import { poRegistry, POLineData } from '../services/poRegistry';
+import { formatNumber } from '../lib/utils';
+
+// Mars Sheet PO data for import
+const MARS_POS: Array<{
+  poNumber: string;
+  supplierCode: string;
+  supplierName: string;
+  sku: string;
+  qtyOrdered: number;
+  qtyReceived: number;
+  qtyRemaining: number;
+  status: string;
+}> = [
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-001', qtyOrdered: 1443, qtyReceived: 0, qtyRemaining: 1443, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-008', qtyOrdered: 1200, qtyReceived: 0, qtyRemaining: 1200, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-010', qtyOrdered: 1023, qtyReceived: 0, qtyRemaining: 1023, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-012', qtyOrdered: 324, qtyReceived: 0, qtyRemaining: 324, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-001', qtyOrdered: 1785, qtyReceived: 0, qtyRemaining: 1785, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-002', qtyOrdered: 1248, qtyReceived: 0, qtyRemaining: 1248, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-003', qtyOrdered: 1755, qtyReceived: 0, qtyRemaining: 1755, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-004', qtyOrdered: 912, qtyReceived: 0, qtyRemaining: 912, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-005', qtyOrdered: 970, qtyReceived: 0, qtyRemaining: 970, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-006', qtyOrdered: 510, qtyReceived: 0, qtyRemaining: 510, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-007', qtyOrdered: 640, qtyReceived: 0, qtyRemaining: 640, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-008', qtyOrdered: 695, qtyReceived: 0, qtyRemaining: 695, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-009', qtyOrdered: 1405, qtyReceived: 0, qtyRemaining: 1405, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-010', qtyOrdered: 445, qtyReceived: 0, qtyRemaining: 445, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-011', qtyOrdered: 360, qtyReceived: 0, qtyRemaining: 360, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-KEY-012', qtyOrdered: 295, qtyReceived: 0, qtyRemaining: 295, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-PC-009', qtyOrdered: 1035, qtyReceived: 0, qtyRemaining: 1035, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-PC-007', qtyOrdered: 800, qtyReceived: 0, qtyRemaining: 800, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-PC-002', qtyOrdered: 800, qtyReceived: 0, qtyRemaining: 800, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-PC-008', qtyOrdered: 600, qtyReceived: 0, qtyRemaining: 600, status: 'Pending' },
+  { poNumber: 'A025-09', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-PC-005', qtyOrdered: 500, qtyReceived: 0, qtyRemaining: 500, status: 'Pending' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-009', qtyOrdered: 5000, qtyReceived: 5000, qtyRemaining: 0, status: 'Complete' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-002', qtyOrdered: 5000, qtyReceived: 5000, qtyRemaining: 0, status: 'Complete' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-005', qtyOrdered: 5000, qtyReceived: 3022, qtyRemaining: 1978, status: 'Partial' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-007', qtyOrdered: 5000, qtyReceived: 3000, qtyRemaining: 2000, status: 'Partial' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-003', qtyOrdered: 3000, qtyReceived: 1568, qtyRemaining: 1432, status: 'Partial' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-008', qtyOrdered: 5000, qtyReceived: 2600, qtyRemaining: 2400, status: 'Partial' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-001', qtyOrdered: 5000, qtyReceived: 0, qtyRemaining: 5000, status: 'Pending' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-004', qtyOrdered: 5000, qtyReceived: 956, qtyRemaining: 4044, status: 'Partial' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-006', qtyOrdered: 5000, qtyReceived: 530, qtyRemaining: 4470, status: 'Partial' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-010', qtyOrdered: 3000, qtyReceived: 2000, qtyRemaining: 1000, status: 'Partial' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-011', qtyOrdered: 3000, qtyReceived: 1000, qtyRemaining: 2000, status: 'Partial' },
+  { poNumber: 'A025-11', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-012', qtyOrdered: 4000, qtyReceived: 1000, qtyRemaining: 3000, status: 'Partial' },
+  { poNumber: 'A026-01', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-009', qtyOrdered: 3000, qtyReceived: 0, qtyRemaining: 3000, status: 'Pending' },
+  { poNumber: 'A026-01', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-002', qtyOrdered: 3000, qtyReceived: 0, qtyRemaining: 3000, status: 'Pending' },
+  { poNumber: 'A026-01', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-008', qtyOrdered: 3000, qtyReceived: 0, qtyRemaining: 3000, status: 'Pending' },
+  { poNumber: 'A026-01', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-005', qtyOrdered: 3000, qtyReceived: 0, qtyRemaining: 3000, status: 'Pending' },
+  { poNumber: 'A026-01', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-007', qtyOrdered: 3000, qtyReceived: 0, qtyRemaining: 3000, status: 'Pending' },
+  { poNumber: 'A026-01', supplierCode: 'CPY_A01', supplierName: 'Youdingzhi Textile', sku: 'OG-M-001', qtyOrdered: 3000, qtyReceived: 0, qtyRemaining: 3000, status: 'Pending' },
+];
 
 export function PurchaseOrders() {
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [poLines, setPOLines] = useState<POLineData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedPOs, setExpandedPOs] = useState<Set<string>>(new Set());
+  const [filterStatus, setFilterStatus] = useState<string>('all');
 
   useEffect(() => {
-    loadOrders();
+    loadPOs();
   }, []);
 
-  async function loadOrders() {
+  function loadPOs() {
     setIsLoading(true);
-    try {
-      const data = await purchaseOrdersApi.getAll();
-      setOrders(data);
-    } catch (error) {
-      console.error('Failed to load orders:', error);
-    } finally {
-      setIsLoading(false);
+    const data = poRegistry.getAll();
+    setPOLines(data);
+    setIsLoading(false);
+  }
+
+  function handleImportMars() {
+    const count = poRegistry.bulkImport(MARS_POS);
+    alert(`Imported ${count} new PO lines. ${MARS_POS.length - count} were updated.`);
+    loadPOs();
+  }
+
+  function handleDeleteAll() {
+    if (confirm('Delete ALL purchase orders? This cannot be undone.')) {
+      poRegistry.deleteAll();
+      loadPOs();
     }
   }
 
-  const statusCounts = {
-    draft: orders.filter(o => o.status === 'draft').length,
-    sent: orders.filter(o => o.status === 'sent').length,
-    confirmed: orders.filter(o => o.status === 'confirmed').length,
-    partial: orders.filter(o => o.status === 'partial').length,
-    complete: orders.filter(o => o.status === 'complete').length,
-  };
+  function handleDeletePO(poNumber: string) {
+    if (confirm(`Delete PO ${poNumber} and all its lines?`)) {
+      poRegistry.deletePO(poNumber);
+      loadPOs();
+    }
+  }
 
-  const totalPending = orders
-    .filter(o => ['sent', 'confirmed', 'partial'].includes(o.status))
-    .reduce((sum, o) => sum + o.totalCost, 0);
+  function handleExport() {
+    const json = poRegistry.exportJSON();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'capy-purchase-orders.json';
+    a.click();
+  }
+
+  function toggleExpanded(poNumber: string) {
+    setExpandedPOs(prev => {
+      const next = new Set(prev);
+      if (next.has(poNumber)) next.delete(poNumber);
+      else next.add(poNumber);
+      return next;
+    });
+  }
+
+  // Get PO summary
+  const poSummary = useMemo(() => {
+    const summary = poRegistry.getPOSummary();
+    // Filter
+    return summary.filter(po => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!po.poNumber.toLowerCase().includes(q) && !po.supplierName.toLowerCase().includes(q)) {
+          return false;
+        }
+      }
+      if (filterStatus !== 'all' && po.status.toLowerCase() !== filterStatus) {
+        return false;
+      }
+      return true;
+    });
+  }, [poLines, searchQuery, filterStatus]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const summary = poRegistry.getPOSummary();
+    return {
+      totalPOs: summary.length,
+      pending: summary.filter(p => p.status === 'Pending').length,
+      partial: summary.filter(p => p.status === 'Partial').length,
+      complete: summary.filter(p => p.status === 'Complete').length,
+      totalUnitsOrdered: summary.reduce((sum, p) => sum + p.totalOrdered, 0),
+      totalUnitsRemaining: summary.reduce((sum, p) => sum + p.totalRemaining, 0),
+    };
+  }, [poLines]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Header 
         title="Purchase Orders" 
-        subtitle="Manage supplier orders and track inbound inventory"
-        onRefresh={loadOrders}
+        subtitle={`${stats.totalPOs} POs, ${formatNumber(stats.totalUnitsRemaining)} units pending`}
+        onRefresh={loadPOs}
         isLoading={isLoading}
       />
       
       <div className="flex-1 overflow-y-auto p-6">
-        {/* Quick Actions */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex gap-3">
-            <StatusBadge icon={<Clock />} label="Draft" count={statusCounts.draft} color="gray" />
-            <StatusBadge icon={<Truck />} label="In Transit" count={statusCounts.confirmed + statusCounts.sent} color="blue" />
-            <StatusBadge icon={<Package />} label="Partial" count={statusCounts.partial} color="yellow" />
-            <StatusBadge icon={<CheckCircle />} label="Complete" count={statusCounts.complete} color="green" />
-          </div>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Create PO
-          </Button>
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <Card className="bg-amber-50">
+            <CardContent className="p-4">
+              <p className="text-xs text-amber-600 font-medium uppercase">Total POs</p>
+              <p className="text-2xl font-bold text-amber-700">{stats.totalPOs}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-slate-500 font-medium uppercase">Pending</p>
+              <p className="text-2xl font-bold">{stats.pending}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-blue-600 font-medium uppercase">Partial</p>
+              <p className="text-2xl font-bold text-blue-700">{stats.partial}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-green-600 font-medium uppercase">Complete</p>
+              <p className="text-2xl font-bold text-green-700">{stats.complete}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-slate-500 font-medium uppercase">Units Remaining</p>
+              <p className="text-2xl font-bold">{formatNumber(stats.totalUnitsRemaining)}</p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Summary Card */}
-        <Card className="mb-6">
-          <CardContent className="py-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-gray-500">Total Value in Transit</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalPending)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Active Purchase Orders</p>
-                <p className="text-2xl font-bold text-gray-900">{orders.filter(o => o.status !== 'complete' && o.status !== 'cancelled').length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Actions */}
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex-1 min-w-[200px] max-w-md">
+            <SearchInput
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search PO number or supplier..."
+            />
+          </div>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="partial">Partial</option>
+            <option value="complete">Complete</option>
+          </select>
+          <Button variant="outline" onClick={handleImportMars}>
+            <Upload className="w-4 h-4 mr-2" />
+            Import from Mars
+          </Button>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+          {poLines.length > 0 && (
+            <Button variant="outline" onClick={handleDeleteAll} className="text-red-600 hover:bg-red-50">
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete All
+            </Button>
+          )}
+        </div>
 
         {/* PO Table */}
         <Card>
-          <CardHeader>
-            <CardTitle>Purchase Orders</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>PO Number</TableHead>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead className="text-right">Total Cost</TableHead>
-                  <TableHead>Expected Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow key={order.id} onClick={() => setSelectedOrder(order)}>
-                    <TableCell className="font-mono font-medium">{order.poNumber}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{order.supplier.name}</p>
-                        <p className="text-xs text-gray-500">{order.supplier.code}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Package className="w-4 h-4 text-gray-400" />
-                        <span>{order.items.length} items</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(order.totalCost)}</TableCell>
-                    <TableCell>{order.expectedDate.toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <POStatusBadge status={order.status} />
-                    </TableCell>
-                    <TableCell className="text-gray-500">{order.createdAt.toLocaleDateString()}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700 w-8"></th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">PO Number</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Supplier</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">SKUs</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">Ordered</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">Received</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">Remaining</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">Status</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {poSummary.map((po) => {
+                  const isExpanded = expandedPOs.has(po.poNumber);
+                  const lines = poRegistry.getByPONumber(po.poNumber);
+                  
+                  return (
+                    <>
+                      <tr key={po.poNumber} className="hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <button 
+                            onClick={() => toggleExpanded(po.poNumber)}
+                            className="p-1 hover:bg-slate-100 rounded"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-slate-400" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-slate-400" />
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-mono font-semibold text-amber-700">{po.poNumber}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-900">{po.supplierName}</p>
+                          <p className="text-xs text-slate-500">{po.supplierCode}</p>
+                        </td>
+                        <td className="px-4 py-3 text-center">{po.totalSkus}</td>
+                        <td className="px-4 py-3 text-center font-medium">{formatNumber(po.totalOrdered)}</td>
+                        <td className="px-4 py-3 text-center text-green-600">{formatNumber(po.totalReceived)}</td>
+                        <td className="px-4 py-3 text-center font-medium">{formatNumber(po.totalRemaining)}</td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge variant={
+                            po.status === 'Complete' ? 'success' :
+                            po.status === 'Partial' ? 'info' :
+                            'warning'
+                          }>
+                            {po.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeletePO(po.poNumber)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                      {isExpanded && lines.map((line) => (
+                        <tr key={line.id} className="bg-slate-50/50">
+                          <td></td>
+                          <td className="px-4 py-2 pl-12">
+                            <span className="text-slate-400 text-xs mr-2">└</span>
+                            <span className="font-mono text-sm">{line.sku}</span>
+                          </td>
+                          <td className="px-4 py-2 text-slate-600">{line.productName || '-'}</td>
+                          <td></td>
+                          <td className="px-4 py-2 text-center text-sm">{formatNumber(line.qtyOrdered)}</td>
+                          <td className="px-4 py-2 text-center text-sm text-green-600">{formatNumber(line.qtyReceived)}</td>
+                          <td className="px-4 py-2 text-center text-sm">{formatNumber(line.qtyRemaining)}</td>
+                          <td className="px-4 py-2 text-center">
+                            <Badge variant={
+                              line.status === 'Complete' ? 'success' :
+                              line.status === 'Partial' ? 'info' :
+                              'outline'
+                            } className="text-xs">
+                              {line.status}
+                            </Badge>
+                          </td>
+                          <td></td>
+                        </tr>
+                      ))}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
 
-        {/* Order Detail Modal */}
-        {selectedOrder && (
-          <PODetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+        {poSummary.length === 0 && !isLoading && (
+          <Card className="text-center py-12 mt-4">
+            <CardContent>
+              <Truck className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500 mb-4">No purchase orders found</p>
+              <Button onClick={handleImportMars}>
+                <Upload className="w-4 h-4 mr-2" />
+                Import from Mars Sheet
+              </Button>
+            </CardContent>
+          </Card>
         )}
       </div>
-    </div>
-  );
-}
-
-function StatusBadge({ icon, label, count, color }: { 
-  icon: React.ReactNode; 
-  label: string; 
-  count: number;
-  color: 'gray' | 'blue' | 'yellow' | 'green';
-}) {
-  const colors = {
-    gray: 'bg-gray-100 text-gray-600',
-    blue: 'bg-blue-100 text-blue-600',
-    yellow: 'bg-yellow-100 text-yellow-600',
-    green: 'bg-green-100 text-green-600',
-  };
-  
-  return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${colors[color]}`}>
-      <span className="w-4 h-4">{icon}</span>
-      <span className="text-sm font-medium">{label}</span>
-      <span className="bg-white/50 px-1.5 py-0.5 rounded-full text-xs font-bold">{count}</span>
-    </div>
-  );
-}
-
-function POStatusBadge({ status }: { status: PurchaseOrder['status'] }) {
-  const config: Record<PurchaseOrder['status'], { variant: 'default' | 'info' | 'warning' | 'success' | 'danger'; label: string }> = {
-    draft: { variant: 'default', label: 'Draft' },
-    sent: { variant: 'info', label: 'Sent' },
-    confirmed: { variant: 'info', label: 'Confirmed' },
-    partial: { variant: 'warning', label: 'Partial' },
-    complete: { variant: 'success', label: 'Complete' },
-    cancelled: { variant: 'danger', label: 'Cancelled' },
-  };
-  
-  return <Badge variant={config[status].variant}>{config[status].label}</Badge>;
-}
-
-function PODetailModal({ order, onClose }: { order: PurchaseOrder; onClose: () => void }) {
-  const totalOrdered = order.items.reduce((sum, i) => sum + i.quantityOrdered, 0);
-  const totalReceived = order.items.reduce((sum, i) => sum + i.quantityReceived, 0);
-  const progress = totalOrdered > 0 ? (totalReceived / totalOrdered) * 100 : 0;
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <Card className="w-full max-w-2xl m-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e?.stopPropagation()}>
-        <CardHeader className="flex flex-row items-start justify-between">
-          <div>
-            <CardTitle>{order.poNumber}</CardTitle>
-            <p className="text-sm text-gray-500">{order.supplier.name}</p>
-          </div>
-          <POStatusBadge status={order.status} />
-        </CardHeader>
-        <CardContent>
-          {/* Progress Bar */}
-          <div className="mb-6">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-500">Receiving Progress</span>
-              <span className="font-medium">{progress.toFixed(0)}%</span>
-            </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-amber-500 rounded-full transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>{formatNumber(totalReceived)} received</span>
-              <span>{formatNumber(totalOrdered)} ordered</span>
-            </div>
-          </div>
-          
-          {/* Order Info */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <p className="text-xs text-gray-500">Expected Date</p>
-              <p className="font-medium">{order.expectedDate.toLocaleDateString()}</p>
-            </div>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <p className="text-xs text-gray-500">Total Cost</p>
-              <p className="font-medium">{formatCurrency(order.totalCost)}</p>
-            </div>
-          </div>
-          
-          {/* Line Items */}
-          <p className="text-sm font-medium text-gray-700 mb-2">Line Items</p>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead className="text-right">Ordered</TableHead>
-                <TableHead className="text-right">Received</TableHead>
-                <TableHead className="text-right">Remaining</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {order.items.map((item, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-mono text-xs">{item.sku}</TableCell>
-                  <TableCell>{item.name}</TableCell>
-                  <TableCell className="text-right">{formatNumber(item.quantityOrdered)}</TableCell>
-                  <TableCell className="text-right text-green-600">{formatNumber(item.quantityReceived)}</TableCell>
-                  <TableCell className="text-right">
-                    {item.quantityOrdered - item.quantityReceived > 0 ? (
-                      <span className="text-orange-600">{formatNumber(item.quantityOrdered - item.quantityReceived)}</span>
-                    ) : (
-                      <span className="text-green-600">✓</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          
-          <div className="mt-6 flex gap-3">
-            <Button variant="primary" className="flex-1">
-              Log Receipt
-            </Button>
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
