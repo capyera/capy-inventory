@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Upload, Download, Package, ChevronDown, ChevronRight, History } from 'lucide-react';
+import { Plus, Edit2, Trash2, Upload, Download, Package, ChevronDown, ChevronRight, History, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -7,7 +7,7 @@ import { Input, SearchInput } from '../components/ui/Input';
 import { Header } from '../components/layout/Header';
 import { supplierRegistry, SupplierData, SUPPLIER_CATEGORIES } from '../services/supplierRegistry';
 import { poRegistry } from '../services/poRegistry';
-import { productRegistry } from '../services/productRegistry';
+import { productRegistry, PRODUCT_CATEGORIES } from '../services/productRegistry';
 import { formatNumber } from '../lib/utils';
 
 // Mars Sheet supplier data for import
@@ -36,7 +36,7 @@ interface SupplierFormProps {
   onCancel: () => void;
 }
 
-function SupplierForm({ supplier, onSave, onCancel }: SupplierFormProps) {
+function SupplierFormModal({ supplier, onSave, onCancel }: SupplierFormProps) {
   const [code, setCode] = useState(supplier?.code || '');
   const [name, setName] = useState(supplier?.name || '');
   const [category, setCategory] = useState(supplier?.category || '');
@@ -46,16 +46,43 @@ function SupplierForm({ supplier, onSave, onCancel }: SupplierFormProps) {
   const [selectedSkus, setSelectedSkus] = useState<string[]>(supplier?.skus || []);
   const [notes, setNotes] = useState(supplier?.notes || '');
   const [skuSearch, setSkuSearch] = useState('');
+  const [skuCategoryFilter, setSkuCategoryFilter] = useState<string>('all');
+  const [skuSubcategoryFilter, setSkuSubcategoryFilter] = useState<string>('all');
 
   // Get all products for SKU selection
   const allProducts = productRegistry.getAll();
+  
+  // Get subcategories for selected category
+  const productSubcategories = useMemo(() => {
+    if (skuCategoryFilter === 'all') return [];
+    const catData = PRODUCT_CATEGORIES[skuCategoryFilter as keyof typeof PRODUCT_CATEGORIES];
+    return catData?.subcategories || [];
+  }, [skuCategoryFilter]);
+
+  // Filter products by category, subcategory, and search
   const filteredProducts = useMemo(() => {
-    if (!skuSearch) return allProducts.slice(0, 20);
-    const q = skuSearch.toLowerCase();
-    return allProducts.filter(p => 
-      p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
-    ).slice(0, 20);
-  }, [allProducts, skuSearch]);
+    let products = allProducts;
+    
+    // Filter by category
+    if (skuCategoryFilter !== 'all') {
+      products = products.filter(p => p.category === skuCategoryFilter);
+    }
+    
+    // Filter by subcategory
+    if (skuSubcategoryFilter !== 'all') {
+      products = products.filter(p => p.subcategory === skuSubcategoryFilter);
+    }
+    
+    // Filter by search
+    if (skuSearch) {
+      const q = skuSearch.toLowerCase();
+      products = products.filter(p => 
+        p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
+      );
+    }
+    
+    return products;
+  }, [allProducts, skuCategoryFilter, skuSubcategoryFilter, skuSearch]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,86 +104,111 @@ function SupplierForm({ supplier, onSave, onCancel }: SupplierFormProps) {
     );
   };
 
+  const selectAllFiltered = () => {
+    const newSkus = filteredProducts.map(p => p.sku);
+    setSelectedSkus(prev => [...new Set([...prev, ...newSkus])]);
+  };
+
+  const clearAllSelected = () => {
+    setSelectedSkus([]);
+  };
+
   return (
-    <Card className="border-2 border-amber-300 bg-amber-50/30 mb-6">
-      <CardHeader>
-        <CardTitle>{supplier ? 'Edit Supplier' : 'Add New Supplier'}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Supplier Code *</label>
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="CPY_A01"
-                required
-                disabled={!!supplier}
-              />
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between border-b flex-shrink-0">
+          <CardTitle>{supplier ? 'Edit Supplier' : 'Add New Supplier'}</CardTitle>
+          <button onClick={onCancel} className="p-1 hover:bg-slate-100 rounded">
+            <X className="w-5 h-5 text-slate-500" />
+          </button>
+        </CardHeader>
+        <CardContent className="overflow-y-auto flex-1 p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Supplier Code *</label>
+                <Input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder="CPY_A01"
+                  required
+                  disabled={!!supplier}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Supplier Name *</label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Supplier Name"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                >
+                  <option value="">Select category...</option>
+                  {SUPPLIER_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Supplier Name *</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Supplier Name"
-                required
-              />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="contact@supplier.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+86 123 456 7890"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-              >
-                <option value="">Select category...</option>
-                {SUPPLIER_CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="contact@supplier.com"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-              <Input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+86 123 456 7890"
-              />
-            </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
-            <Input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Full supplier address..."
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Full supplier address..."
+              />
+            </div>
 
-          {/* SKU Assignment */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Assigned SKUs ({selectedSkus.length})
-            </label>
-            <div className="border border-slate-200 rounded-lg p-3 bg-white">
+            {/* SKU Assignment with Category Filter */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Assigned SKUs ({selectedSkus.length})
+                </label>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={selectAllFiltered}>
+                    Select All Shown
+                  </Button>
+                  {selectedSkus.length > 0 && (
+                    <Button type="button" variant="outline" size="sm" onClick={clearAllSelected}>
+                      Clear All
+                    </Button>
+                  )}
+                </div>
+              </div>
+              
               {/* Selected SKUs */}
               {selectedSkus.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b">
+                <div className="flex flex-wrap gap-1 mb-3 p-2 bg-amber-50 rounded-lg border border-amber-200 max-h-24 overflow-y-auto">
                   {selectedSkus.map(sku => (
                     <Badge 
                       key={sku} 
@@ -169,47 +221,103 @@ function SupplierForm({ supplier, onSave, onCancel }: SupplierFormProps) {
                   ))}
                 </div>
               )}
-              {/* Search and add */}
-              <Input
-                value={skuSearch}
-                onChange={(e) => setSkuSearch(e.target.value)}
-                placeholder="Search SKUs to add..."
-                className="mb-2"
-              />
-              <div className="max-h-32 overflow-y-auto space-y-1">
-                {filteredProducts.filter(p => !selectedSkus.includes(p.sku)).map(p => (
-                  <button
-                    key={p.sku}
-                    type="button"
-                    onClick={() => toggleSku(p.sku)}
-                    className="w-full text-left px-2 py-1 text-sm hover:bg-amber-50 rounded flex justify-between items-center"
+
+              {/* Filters */}
+              <div className="flex gap-2 mb-2">
+                <select
+                  value={skuCategoryFilter}
+                  onChange={(e) => {
+                    setSkuCategoryFilter(e.target.value);
+                    setSkuSubcategoryFilter('all');
+                  }}
+                  className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                >
+                  <option value="all">All Categories</option>
+                  {Object.entries(PRODUCT_CATEGORIES).map(([key, cat]) => (
+                    <option key={key} value={key}>{cat.label}</option>
+                  ))}
+                </select>
+                
+                {productSubcategories.length > 0 && (
+                  <select
+                    value={skuSubcategoryFilter}
+                    onChange={(e) => setSkuSubcategoryFilter(e.target.value)}
+                    className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                   >
-                    <span className="font-mono text-slate-600">{p.sku}</span>
-                    <span className="text-slate-500 truncate ml-2">{p.name}</span>
-                  </button>
-                ))}
+                    <option value="all">All Subcategories</option>
+                    {productSubcategories.map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
+                )}
+                
+                <Input
+                  value={skuSearch}
+                  onChange={(e) => setSkuSearch(e.target.value)}
+                  placeholder="Search SKU or name..."
+                  className="flex-1"
+                />
               </div>
+
+              {/* SKU List */}
+              <div className="border border-slate-200 rounded-lg bg-white max-h-48 overflow-y-auto">
+                {filteredProducts.length > 0 ? (
+                  <div className="divide-y">
+                    {filteredProducts.map(p => {
+                      const isSelected = selectedSkus.includes(p.sku);
+                      return (
+                        <button
+                          key={p.sku}
+                          type="button"
+                          onClick={() => toggleSku(p.sku)}
+                          className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-slate-50 ${
+                            isSelected ? 'bg-amber-50' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="checkbox" 
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="rounded text-amber-600"
+                            />
+                            <span className="font-mono text-slate-600">{p.sku}</span>
+                          </div>
+                          <span className="text-slate-500 truncate ml-2">{p.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 p-4 text-center">
+                    No products found. Add products first.
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Showing {filteredProducts.length} products
+              </p>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-            <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Additional notes..."
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+              <Input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Additional notes..."
+              />
+            </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-            <Button type="submit" disabled={!code || !name}>
-              {supplier ? 'Update Supplier' : 'Add Supplier'}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+              <Button type="submit" disabled={!code || !name}>
+                {supplier ? 'Update Supplier' : 'Add Supplier'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -324,6 +432,15 @@ export function Suppliers() {
       />
       
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Modal Form */}
+        {(showForm || editingSupplier) && (
+          <SupplierFormModal
+            supplier={editingSupplier || undefined}
+            onSave={handleSave}
+            onCancel={() => { setShowForm(false); setEditingSupplier(null); }}
+          />
+        )}
+
         {/* Actions */}
         <div className="flex flex-wrap gap-4 mb-6">
           <div className="flex-1 min-w-[200px] max-w-md">
@@ -347,20 +464,11 @@ export function Suppliers() {
               Delete All
             </Button>
           )}
-          <Button onClick={() => { setShowForm(true); setEditingSupplier(null); }}>
+          <Button onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Supplier
           </Button>
         </div>
-
-        {/* Form */}
-        {(showForm || editingSupplier) && (
-          <SupplierForm
-            supplier={editingSupplier || undefined}
-            onSave={handleSave}
-            onCancel={() => { setShowForm(false); setEditingSupplier(null); }}
-          />
-        )}
 
         {/* Supplier Table */}
         <Card>
@@ -424,7 +532,7 @@ export function Suppliers() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => { setEditingSupplier(supplier); setShowForm(false); }}
+                              onClick={() => setEditingSupplier(supplier)}
                             >
                               <Edit2 className="w-4 h-4" />
                             </Button>
@@ -465,7 +573,7 @@ export function Suppliers() {
                                     <p className="text-xs font-medium text-slate-500 uppercase mb-1">
                                       Assigned SKUs ({supplier.skus.length})
                                     </p>
-                                    <div className="flex flex-wrap gap-1">
+                                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
                                       {supplier.skus.map(sku => (
                                         <Badge key={sku} variant="outline" className="text-xs">{sku}</Badge>
                                       ))}
@@ -478,7 +586,7 @@ export function Suppliers() {
                               <div>
                                 <p className="text-xs font-medium text-slate-500 uppercase mb-2">PO History</p>
                                 {poHistory.length > 0 ? (
-                                  <div className="space-y-2">
+                                  <div className="space-y-2 max-h-32 overflow-y-auto">
                                     {poHistory.map(po => (
                                       <div key={po.poNumber} className="flex items-center justify-between p-2 bg-white rounded border text-sm">
                                         <div>

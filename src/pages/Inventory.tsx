@@ -132,14 +132,17 @@ export function Inventory() {
     if (filterCategory === 'all') {
       // Show all subcategories from all categories
       const allSubs: string[] = [];
-      Object.values(PRODUCT_CATEGORIES).forEach(subs => allSubs.push(...subs));
+      Object.values(PRODUCT_CATEGORIES).forEach(cat => {
+        if (cat.subcategories) allSubs.push(...cat.subcategories);
+      });
       inventory.forEach(i => {
         if ((i as any).subcategory) allSubs.push((i as any).subcategory);
       });
       return [...new Set(allSubs)];
     }
     // Show subcategories for selected category
-    const categorySubs = PRODUCT_CATEGORIES[filterCategory as keyof typeof PRODUCT_CATEGORIES] || [];
+    const categoryData = PRODUCT_CATEGORIES[filterCategory as keyof typeof PRODUCT_CATEGORIES];
+    const categorySubs = categoryData?.subcategories || [];
     const inventorySubs = inventory
       .filter(i => i.category === filterCategory)
       .map(i => (i as any).subcategory)
