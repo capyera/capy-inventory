@@ -10,6 +10,9 @@ import { Suppliers } from './pages/Suppliers';
 import { Forecasting } from './pages/Forecasting';
 import { DemandPlanning } from './pages/DemandPlanning';
 import { ReorderPoints } from './pages/ReorderPoints';
+import { RevenueTargetPlanner } from './pages/RevenueTargetPlanner';
+import { OpsCalendar } from './pages/OpsCalendar';
+import { Analytics } from './pages/Analytics';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -17,7 +20,7 @@ function App() {
   const renderPage = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={setActiveTab} />;
       case 'inventory':
         return <Inventory />;
       case 'warehouses':
@@ -36,14 +39,18 @@ function App() {
         return <DemandPlanning />;
       case 'reorder':
         return <ReorderPoints />;
+      case 'revenue-planner':
+        return <RevenueTargetPlanner />;
+      case 'ops-calendar':
+        return <OpsCalendar />;
       case 'analytics':
-        return <AnalyticsPlaceholder />;
+        return <Analytics />;
       case 'settings':
         return <SettingsPlaceholder />;
       case 'help':
         return <HelpPlaceholder />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={setActiveTab} />;
     }
   };
 
@@ -53,20 +60,6 @@ function App() {
       <main className="flex-1 flex flex-col overflow-hidden">
         {renderPage()}
       </main>
-    </div>
-  );
-}
-
-function AnalyticsPlaceholder() {
-  return (
-    <div className="flex-1 flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
-          <span className="text-2xl">📊</span>
-        </div>
-        <h2 className="text-xl font-semibold text-gray-900">Analytics</h2>
-        <p className="text-gray-500 mt-2">Advanced analytics coming soon</p>
-      </div>
     </div>
   );
 }

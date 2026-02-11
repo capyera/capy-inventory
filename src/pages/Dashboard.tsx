@@ -6,14 +6,21 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Clock,
-  ShoppingCart
+  ShoppingCart,
+  Target,
+  Calendar,
+  Zap,
+  Sparkles
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { Header } from '../components/layout/Header';
+import { AIInsightCards } from '../components/AIInsightCards';
 import { dashboardApi, inventoryApi } from '../services/api';
 import { formatCurrency, formatNumber, getStockStatus } from '../lib/utils';
+import { getQuickStats } from '../services/aiInsights';
 import type { DashboardStats, InventoryItem, AlertItem } from '../types';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -32,11 +39,17 @@ const salesData = [
   { date: 'Feb 10', units: 1680, revenue: 64000 },
 ];
 
-export function Dashboard() {
+interface DashboardProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export function Dashboard({ onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const quickStats = getQuickStats();
 
   useEffect(() => {
     loadData();
@@ -86,6 +99,48 @@ export function Dashboard() {
       />
       
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Quick Actions Bar */}
+        <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 rounded-xl border border-amber-100">
+          <div className="flex items-center gap-2 text-amber-800">
+            <Zap className="w-5 h-5" />
+            <span className="font-medium">Quick Actions</span>
+          </div>
+          <div className="flex-1 flex flex-wrap gap-2">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="bg-white hover:bg-amber-50"
+              onClick={() => onNavigate?.('revenue-planner')}
+            >
+              <Target className="w-4 h-4 mr-1" />
+              Revenue Planner
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="bg-white hover:bg-amber-50"
+              onClick={() => onNavigate?.('ops-calendar')}
+            >
+              <Calendar className="w-4 h-4 mr-1" />
+              Ops Calendar
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="bg-white hover:bg-amber-50"
+              onClick={() => onNavigate?.('purchase-orders')}
+            >
+              <Package className="w-4 h-4 mr-1" />
+              Create PO
+            </Button>
+          </div>
+          {quickStats.criticalCount > 0 && (
+            <Badge variant="danger" className="animate-pulse">
+              {quickStats.criticalCount} Critical
+            </Badge>
+          )}
+        </div>
+
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
@@ -271,6 +326,29 @@ export function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* AI Insights Section */}
+        <Card className="mb-6">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              AI Insights
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {quickStats.criticalCount > 0 && (
+                <Badge variant="danger">{quickStats.criticalCount} critical</Badge>
+              )}
+              {quickStats.highPriorityCount > 0 && (
+                <Badge variant="warning">{quickStats.highPriorityCount} high priority</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <AIInsightCards limit={4} showHeader={false} />
+          </CardContent>
+        </Card>
 
         {/* Alerts Section */}
         {alerts.length > 0 && (

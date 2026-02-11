@@ -11,7 +11,9 @@ import {
   HelpCircle,
   BarChart3,
   Warehouse,
-  Brain
+  Brain,
+  Target,
+  Calendar
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -22,6 +24,8 @@ interface SidebarProps {
 
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'revenue-planner', label: 'Revenue Planner', icon: Target, badge: 'PRO' },
+  { id: 'ops-calendar', label: 'Ops Calendar', icon: Calendar, badge: 'NEW' },
   { id: 'inventory', label: 'Inventory', icon: Package },
   { id: 'warehouses', label: 'Warehouses', icon: Warehouse },
   { id: 'bundles', label: 'Bundles', icon: Layers },
@@ -62,17 +66,27 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             key={item.id}
             onClick={() => onTabChange(item.id)}
             className={cn(
-              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
               activeTab === item.id
-                ? "bg-amber-50 text-amber-700"
+                ? "bg-gradient-to-r from-amber-50 to-orange-50 text-amber-700 shadow-sm"
                 : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
             )}
           >
             <item.icon className={cn(
-              "w-5 h-5",
+              "w-5 h-5 transition-colors",
               activeTab === item.id ? "text-amber-600" : "text-gray-400"
             )} />
-            {item.label}
+            <span className="flex-1 text-left">{item.label}</span>
+            {item.badge && (
+              <span className={cn(
+                "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                item.badge === 'PRO' 
+                  ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white"
+                  : "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
+              )}>
+                {item.badge}
+              </span>
+            )}
           </button>
         ))}
       </nav>
