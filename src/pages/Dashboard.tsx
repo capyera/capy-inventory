@@ -18,6 +18,7 @@ import { Button } from '../components/ui/Button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import { Header } from '../components/layout/Header';
 import { AIInsightCards } from '../components/AIInsightCards';
+import { ProductThumbnail } from './Products';
 import { dashboardApi, inventoryApi } from '../services/api';
 import { formatCurrency, formatNumber, getStockStatus } from '../lib/utils';
 import { getQuickStats } from '../services/aiInsights';
@@ -277,7 +278,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     const status = getStockStatus(item.currentQty, item.velocity30d);
                     return (
                       <TableRow key={item.sku}>
-                        <TableCell className="font-mono text-xs">{item.sku}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <ProductThumbnail sku={item.sku} size="sm" />
+                            <span className="font-mono text-xs">{item.sku}</span>
+                          </div>
+                        </TableCell>
                         <TableCell className="max-w-[150px] truncate">{item.productName}</TableCell>
                         <TableCell className="text-right font-medium">{item.currentQty}</TableCell>
                         <TableCell>
@@ -312,7 +318,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <TableBody>
                   {topVelocityItems.map((item) => (
                     <TableRow key={item.sku}>
-                      <TableCell className="font-mono text-xs">{item.sku}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <ProductThumbnail sku={item.sku} size="sm" />
+                          <span className="font-mono text-xs">{item.sku}</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="max-w-[150px] truncate">{item.productName}</TableCell>
                       <TableCell className="text-right">
                         <span className="font-medium text-amber-700">{item.velocity30d.toFixed(1)}</span>

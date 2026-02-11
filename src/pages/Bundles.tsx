@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
-  Layers, Plus, Package, AlertTriangle, Check, Edit2, Trash2, 
+  Layers, Plus, AlertTriangle, Check, Edit2, Trash2, 
   ChevronDown, ChevronRight, Save, X, ArrowRight, GitBranch
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { Header } from '../components/layout/Header';
+import { ProductThumbnail } from './Products';
 import { inventoryApi } from '../services/api';
 import { bundleRegistry, getProductName, PRODUCT_NAMES } from '../services/bundleRegistry';
 import { formatCurrency, formatNumber } from '../lib/utils';
@@ -50,7 +51,7 @@ function ComponentTree({ components, inventory, limitingSku }: ComponentTreeProp
               {idx === components.length - 1 ? '└' : '├'}
               <ArrowRight className="w-3 h-3 ml-1" />
             </div>
-            <Package className={`w-4 h-4 ${isLimiting ? 'text-amber-500' : 'text-gray-400'}`} />
+            <ProductThumbnail sku={component.sku} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{component.name}</p>
               <p className="text-xs text-gray-500 font-mono">{component.sku}</p>
