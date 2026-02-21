@@ -1,5 +1,5 @@
 // Capy Inventory Service Worker
-const CACHE_NAME = 'capy-inventory-v1';
+const CACHE_NAME = 'capy-inventory-v2';
 const OFFLINE_URL = '/capy-inventory/';
 
 // Assets to cache immediately on install
